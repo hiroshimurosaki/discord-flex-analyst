@@ -37,6 +37,10 @@ pytest
 
 ## Roteiro (marcos)
 
-Fundação ✅ → núcleo de dados (refatorar flex-analyzer p/ o banco) →
-ingestão (poller + fila) → saída mínima no Discord (sem LLM) →
-narrativa (LLM) → detector de tendências → Fase 2 (quizzes pós-partida).
+Fundação ✅ → núcleo de dados ✅ (ingestão Riot + moments) →
+saída mínima ✅ (post determinístico + recordes; falta plugar o Discord) →
+ingestão automática (poller + fila) → narrativa (LLM) →
+detector de tendências → Fase 2 (quizzes pós-partida).
+
+Peças prontas: `post.py` (post da partida), `records.py` (/recordes, /perfil,
+"novo recorde!"), `moments.py` (momentos-chave). Falta a borda do Discord.

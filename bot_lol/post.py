@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 from typing import Optional
 
-from . import config, moments
+from . import config, moments, records
 from .db import database as db
 
 _ROLE_PT = {"TOP": "TOP", "JUNGLE": "JG", "MIDDLE": "MID",
@@ -138,6 +138,14 @@ def montar_post(conn, partida_id: int) -> str:
     if conquistas:
         L.append("**🎖️ Conquistas**")
         L.extend(f"• {c}" for c in conquistas)
+
+    # --- Recordes batidos nesta partida (callout 🆕) ---
+    queues = records.FLEX if p["queue_id"] in records.FLEX else records.NORMAIS
+    grupo_id = conn.execute("SELECT grupo_id FROM partidas WHERE id=?", (partida_id,)).fetchone()["grupo_id"]
+    batidos = records.recordes_batidos(conn, grupo_id, partida_id, queues)
+    if batidos:
+        L.append("\n**🏆 Recordes**")
+        L.extend(f"• {b}" for b in batidos)
 
     L.append("\n🎙️ *[narrativa da LLM entra no marco 5]*")
     return "\n".join(L)
