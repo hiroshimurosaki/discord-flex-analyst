@@ -43,3 +43,22 @@ def test_post_tem_blocos_essenciais():
     assert "vs Lissandra" in txt
     # conquista de challenge (soloKills do Hiroshi)
     assert "abates solo" in txt
+    # sem narrador -> placeholder do marco 5
+    assert "marco 5" in txt
+
+
+def test_post_injeta_narrador():
+    """O narrador (callable fatos->texto) preenche a 🎙️ e recebe os fatos."""
+    conn, pid = _setup()
+    capturado = {}
+
+    def narrador_fake(fatos):
+        capturado["fatos"] = fatos
+        return "NARRATIVA DE TESTE"
+
+    txt = post.montar_post(conn, pid, narrador=narrador_fake)
+    assert "🎙️ A leitura" in txt
+    assert "NARRATIVA DE TESTE" in txt
+    assert "marco 5" not in txt
+    # o narrador recebeu os fatos determinísticos (não vazio, com a escalação)
+    assert "Escalação" in capturado["fatos"]

@@ -87,15 +87,28 @@ class RiotClient:
         data = self._get(url)
         return data.get("puuid") if data else None
 
-    def get_match_ids(self, puuid: str, count: int = 20,
-                      queue: Optional[int] = None) -> list[str]:
+    def get_match_ids(self, puuid: str, count: int = 20, queue: Optional[int] = None,
+                      start: int = 0) -> list[str]:
         """IDs de partida (mais recentes primeiro). queue=440 filtra só Flex."""
-        params: dict = {"start": 0, "count": min(100, count)}
+        params: dict = {"start": start, "count": min(100, count)}
         if queue is not None:
             params["queue"] = queue
         url = (f"https://{self.regional}.api.riotgames.com/lol/match/v5/"
                f"matches/by-puuid/{puuid}/ids")
         return self._get(url, params=params) or []
+
+    def get_match_ids_all(self, puuid: str, max_total: int = 1000,
+                          queue: Optional[int] = None) -> list[str]:
+        """Pagina todo o histórico disponível (até max_total)."""
+        ids: list[str] = []
+        while len(ids) < max_total:
+            lote = self.get_match_ids(puuid, count=100, queue=queue, start=len(ids))
+            if not lote:
+                break
+            ids.extend(lote)
+            if len(lote) < 100:
+                break
+        return ids
 
     def get_match(self, match_id: str) -> Optional[dict]:
         """Partida com cache em disco (re-rodar não recobra da API)."""

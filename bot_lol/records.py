@@ -15,7 +15,11 @@ from collections import defaultdict
 from typing import Optional
 
 FLEX = {440}
-NORMAIS = {400, 430, 490, 450}  # draft, blind, quickplay, ARAM
+SOLO = {420}
+NORMAIS = {400, 430, 490}        # draft, blind, quickplay (SEM ARAM/Arena)
+# Filas que entram no dataset. Fora daqui: ARAM(450), Arena(1700/1710),
+# URF, bots, Clash, etc. — não queremos.
+PERMITIDAS = FLEX | SOLO | NORMAIS
 
 # Métricas (maior = melhor) usadas no percentil-na-partida.
 _PCT_METRICAS = ["dano", "ouro", "visao", "kp", "farm"]

@@ -23,9 +23,12 @@ def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
     """Abre conexão SQLite com chaves estrangeiras e rows como dict."""
     path = Path(db_path) if db_path else config.DB_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
+    # WAL: leitor (bot) e escritor (backfill) convivem sem travar um ao outro.
+    if str(path) != ":memory:":
+        conn.execute("PRAGMA journal_mode = WAL;")
     return conn
 
 
@@ -132,6 +135,37 @@ _PART_COLS: Sequence[str] = (
     "kills", "deaths", "assists", "dano", "dano_recebido", "ouro", "visao",
     "farm", "kp", "ouro_10", "ouro_15", "lanediff_10", "challenges_json",
 )
+
+
+def get_analises(conn: sqlite3.Connection, partida_id: int) -> Optional[dict]:
+    """Cache das narrativas: {"time": txt, "jogadores": {nick: txt}} ou None."""
+    rows = conn.execute(
+        "SELECT a.tipo, a.texto, j.nick_display FROM analises a "
+        "LEFT JOIN jogadores j ON j.id = a.jogador_id WHERE a.partida_id=?",
+        (partida_id,)).fetchall()
+    if not rows:
+        return None
+    out: dict = {"time": None, "jogadores": {}}
+    for r in rows:
+        if r["tipo"] == "time":
+            out["time"] = r["texto"]
+        elif r["nick_display"]:
+            out["jogadores"][r["nick_display"]] = r["texto"]
+    return out
+
+
+def salvar_analises(conn: sqlite3.Connection, partida_id: int, texto_time: str,
+                    por_jogador: dict[int, str], modelo: str) -> None:
+    """Regrava o lote de análises da partida (apaga o anterior, insere o novo)."""
+    conn.execute("DELETE FROM analises WHERE partida_id=?", (partida_id,))
+    conn.execute(
+        "INSERT INTO analises (partida_id, tipo, jogador_id, texto, modelo) "
+        "VALUES (?, 'time', NULL, ?, ?)", (partida_id, texto_time, modelo))
+    conn.executemany(
+        "INSERT INTO analises (partida_id, tipo, jogador_id, texto, modelo) "
+        "VALUES (?, 'individual', ?, ?, ?)",
+        [(partida_id, jid, txt, modelo) for jid, txt in por_jogador.items()])
+    conn.commit()
 
 
 def insert_participacoes(conn: sqlite3.Connection, linhas: Iterable[dict[str, Any]]) -> int:

@@ -30,6 +30,7 @@ RIOT_PLATFORM = os.environ.get("RIOT_PLATFORM", "br1")
 # Segredos (podem estar vazios nesta fase; cada marco usa o seu).
 RIOT_API_KEY = os.environ.get("RIOT_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN", "")
 DISCORD_GUILD_ID = os.environ.get("DISCORD_GUILD_ID", "")
 DISCORD_CANAL_ID = os.environ.get("DISCORD_CANAL_ID", "")

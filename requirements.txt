@@ -5,8 +5,7 @@ discord.py==2.4.0
 # audioop foi removido no Python 3.13; discord.py precisa deste backport.
 audioop-lts==0.2.1; python_version >= "3.13"
 
-# Adicionado no marco "narrativa":
-#   google-genai      -> LLM Gemini
+google-genai==2.7.0
 
 # Dev/testes:
 pytest==8.3.3

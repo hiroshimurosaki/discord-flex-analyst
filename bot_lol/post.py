@@ -32,7 +32,21 @@ def _load_cache(match_id: str):
     return match, tl
 
 
-def montar_post(conn, partida_id: int) -> str:
+def montar_post(conn, partida_id: int, narrador=None) -> str:
+    """Post do time. Se `narrador` (callable: fatos->texto) for dado, preenche
+    a 🎙️; senão, placeholder. Para o fluxo com cache, use fatos_partida()."""
+    fatos = fatos_partida(conn, partida_id)
+    if narrador is None:
+        return fatos + "\n\n🎙️ *[narrativa da LLM entra no marco 5]*"
+    try:
+        narrativa = narrador(fatos)
+    except Exception as e:
+        narrativa = f"_(narrativa indisponível: {e})_"
+    return fatos + "\n\n**🎙️ A leitura**\n" + narrativa
+
+
+def fatos_partida(conn, partida_id: int) -> str:
+    """Bloco determinístico do time (sem narrativa) — vira display E contexto da LLM."""
     p = conn.execute("SELECT * FROM partidas WHERE id=?", (partida_id,)).fetchone()
     parts = conn.execute(
         "SELECT pa.*, j.nick_display FROM participacoes pa "
@@ -147,7 +161,52 @@ def montar_post(conn, partida_id: int) -> str:
         L.append("\n**🏆 Recordes**")
         L.extend(f"• {b}" for b in batidos)
 
-    L.append("\n🎙️ *[narrativa da LLM entra no marco 5]*")
+    return "\n".join(L)
+
+
+def montar_post_individual(conn, partida_id: int, jogador_id: int, narrador=None) -> str:
+    """Post focado num jogador. O `narrador` (individual) recebe os FATOS
+    COMPLETOS do time como contexto, pra situar o desempenho dele."""
+    fatos_ind = fatos_jogador(conn, partida_id, jogador_id)
+    if fatos_ind is None:
+        return "Esse jogador não participou dessa partida."
+    if narrador is None:
+        return fatos_ind + "\n\n🎙️ *[análise individual entra com a LLM]*"
+    fatos_time = fatos_partida(conn, partida_id)  # contexto completo p/ a LLM
+    try:
+        analise = narrador(fatos_time)
+    except Exception as e:
+        analise = f"_(análise indisponível: {e})_"
+    return fatos_ind + "\n\n**🎙️ Análise individual**\n" + analise
+
+
+def fatos_jogador(conn, partida_id: int, jogador_id: int) -> Optional[str]:
+    """Bloco determinístico individual (linha + duelo de rota + conquistas)."""
+    p = conn.execute("SELECT * FROM partidas WHERE id=?", (partida_id,)).fetchone()
+    eu = conn.execute(
+        "SELECT pa.*, j.nick_display FROM participacoes pa JOIN jogadores j ON j.id=pa.jogador_id "
+        "WHERE pa.partida_id=? AND pa.jogador_id=?", (partida_id, jogador_id)).fetchone()
+    if not eu:
+        return None
+
+    venceu = p["vencedor_team"] == eu["team_id"]
+    res = "🏆 Vitória" if venceu else "❌ Derrota"
+    dur = f"{(p['duracao_seg'] or 0)//60}min"
+    opp = conn.execute(
+        "SELECT campeao, farm, ouro FROM participacoes WHERE partida_id=? AND team_id<>? AND role=?",
+        (partida_id, eu["team_id"], eu["role"])).fetchone()
+
+    L = [f"👤 **{eu['nick_display']}** — {eu['campeao']} ({_ROLE_PT.get(eu['role'], '?')}) · {res} em {dur}", ""]
+    L.append(f"KDA **{eu['kills']}/{eu['deaths']}/{eu['assists']}** · dano {(eu['dano'] or 0)/1000:.1f}k "
+             f"· ouro {(eu['ouro'] or 0)/1000:.1f}k · visão {eu['visao']} · CS {eu['farm']}")
+    if opp:
+        ld = eu["lanediff_10"]
+        sinal = "🟢" if (ld or 0) >= 0 else "🔴"
+        ldtxt = f"ouro@10 {ld:+d}" if ld is not None else "sem ouro@10"
+        L.append(f"⚔️ Rota vs {opp['campeao']}: {sinal} {ldtxt}, CS {(eu['farm'] or 0)-(opp['farm'] or 0):+d}")
+    conq = _conquistas([eu])
+    if conq:
+        L.extend(f"🎖️ {c}" for c in conq)
     return "\n".join(L)
 
 

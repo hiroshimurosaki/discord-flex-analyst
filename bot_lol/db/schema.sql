@@ -82,8 +82,23 @@ CREATE TABLE IF NOT EXISTS participacoes (
 );
 
 -- ============================================================
+-- analises — cache das narrativas da LLM (1 chamada gera o lote)
+-- tipo: 'time' (jogador_id NULL) ou 'individual' (jogador_id preenchido)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS analises (
+    id          INTEGER PRIMARY KEY,
+    partida_id  INTEGER NOT NULL REFERENCES partidas(id),
+    tipo        TEXT NOT NULL,            -- 'time' | 'individual'
+    jogador_id  INTEGER REFERENCES jogadores(id),
+    texto       TEXT NOT NULL,
+    modelo      TEXT,
+    criado_em   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ============================================================
 -- Índices para as queries quentes (sempre por grupo/jogador).
 -- ============================================================
+CREATE INDEX IF NOT EXISTS idx_analises_partida ON analises(partida_id);
 CREATE INDEX IF NOT EXISTS idx_jogadores_grupo   ON jogadores(grupo_id);
 CREATE INDEX IF NOT EXISTS idx_partidas_grupo     ON partidas(grupo_id);
 CREATE INDEX IF NOT EXISTS idx_partidas_queue     ON partidas(grupo_id, queue_id);

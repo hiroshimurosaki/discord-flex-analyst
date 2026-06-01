@@ -8,7 +8,10 @@
       "Bash(./.venv/Scripts/python.exe -m scripts.seed_demo)",
       "Bash(./.venv/Scripts/python.exe -m scripts.show_posts)",
       "Bash(git check-ignore *)",
-      "Bash(./.venv/Scripts/python.exe -c \"import time; time.sleep\\(4\\)\")"
+      "Bash(./.venv/Scripts/python.exe -c \"import time; time.sleep\\(4\\)\")",
+      "Bash(./.venv/Scripts/python.exe -m scripts.compare_llm)",
+      "Bash(./.venv/Scripts/python.exe -m bot_lol.discord_bot)",
+      "Bash(./.venv/Scripts/python.exe -c \"import time; time.sleep\\(6\\)\")"
     ]
   }
 }
