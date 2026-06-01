@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv .venv)",
+      "Bash(./.venv/Scripts/python.exe -m pip install -q -r requirements.txt)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(./.venv/Scripts/python.exe -m scripts.seed_demo)",
+      "Bash(./.venv/Scripts/python.exe -m scripts.show_posts)",
+      "Bash(git check-ignore *)"
+    ]
+  }
+}

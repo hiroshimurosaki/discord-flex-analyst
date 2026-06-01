@@ -1,0 +1,32 @@
+# === Segredos (NUNCA commitar) ===
+.env
+.env.*
+!.env.example
+config.local.*
+*.key
+
+# === Dados locais (estado / cache, não vão pro Git) ===
+data/
+cache/
+*.db
+*.sqlite
+*.sqlite3
+analise_flex.json
+resumo_flex.txt
+solo_vs_grupo.*
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# === Editores / SO ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

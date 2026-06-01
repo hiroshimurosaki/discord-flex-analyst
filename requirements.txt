@@ -1,0 +1,10 @@
+# Versões travadas para reprodutibilidade entre Linux e Windows.
+requests==2.32.3
+python-dotenv==1.0.1
+
+# Adicionados nos próximos marcos:
+#   discord.py        -> bot (marco "saída mínima")
+#   google-genai      -> LLM Gemini (marco "narrativa")
+
+# Dev/testes:
+pytest==8.3.3
