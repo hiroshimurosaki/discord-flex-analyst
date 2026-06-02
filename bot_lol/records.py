@@ -16,6 +16,7 @@ from typing import Optional
 
 FLEX = {440}
 SOLO = {420}
+RANKED = SOLO | FLEX              # {420, 440} — base do detector de tendências
 NORMAIS = {400, 430, 490}        # draft, blind, quickplay (SEM ARAM/Arena)
 # Filas que entram no dataset. Fora daqui: ARAM(450), Arena(1700/1710),
 # URF, bots, Clash, etc. — não queremos.
@@ -39,11 +40,28 @@ def _data(ts: Optional[int]) -> str:
     return datetime.fromtimestamp((ts or 0) / 1000).strftime("%d/%m/%Y") if ts else "?"
 
 
-def _partidas_grupo(conn, grupo_id: int, queues: set[int]) -> list:
+def rotulo_recorte(queues: set[int]) -> str:
+    """Nome legível do recorte a partir do conjunto de filas."""
+    if queues == FLEX:
+        return "Flex"
+    if queues == SOLO:
+        return "Solo/Duo"
+    return "Normais"
+
+
+def _partidas_grupo(conn, grupo_id: int, queues: set[int],
+                    em_grupo: Optional[int] = 1) -> list:
+    """Partidas do grupo nas filas pedidas. `em_grupo`:
+      1    -> só jogos em time fechado (recortes Flex/Normais);
+      None -> qualquer (recorte Solo/Duo: o jogo é individual por natureza)."""
     qs = ",".join("?" for _ in queues)
-    return conn.execute(
-        f"SELECT * FROM partidas WHERE grupo_id=? AND em_grupo=1 AND queue_id IN ({qs}) "
-        "ORDER BY inicio_ts", (grupo_id, *queues)).fetchall()
+    sql = f"SELECT * FROM partidas WHERE grupo_id=? AND queue_id IN ({qs}) "
+    params: list = [grupo_id, *queues]
+    if em_grupo is not None:
+        sql += "AND em_grupo=? "
+        params.append(em_grupo)
+    sql += "ORDER BY inicio_ts"
+    return conn.execute(sql, params).fetchall()
 
 
 def _membros(conn, partida_id: int) -> list:
@@ -92,9 +110,10 @@ def _nosso_time(conn, partida_id: int) -> Optional[int]:
 # ----------------------------------------------------------------------
 # Recordes do grupo
 # ----------------------------------------------------------------------
-def recordes_grupo(conn, grupo_id: int, queues: set[int] = FLEX) -> dict:
+def recordes_grupo(conn, grupo_id: int, queues: set[int] = FLEX,
+                   em_grupo: Optional[int] = 1) -> dict:
     """Devolve {categoria: {valor, nick, campeao, partida_id, data, ...}}."""
-    partidas = _partidas_grupo(conn, grupo_id, queues)
+    partidas = _partidas_grupo(conn, grupo_id, queues, em_grupo)
     rec: dict[str, dict] = {}
 
     def melhor(cat, valor, **extra):
@@ -177,8 +196,9 @@ def recordes_batidos(conn, grupo_id: int, partida_id: int, queues: set[int] = FL
 # ----------------------------------------------------------------------
 # Perfil individual
 # ----------------------------------------------------------------------
-def perfil(conn, grupo_id: int, jogador_id: int, queues: set[int] = FLEX) -> dict:
-    partidas = _partidas_grupo(conn, grupo_id, queues)
+def perfil(conn, grupo_id: int, jogador_id: int, queues: set[int] = FLEX,
+           em_grupo: Optional[int] = 1) -> dict:
+    partidas = _partidas_grupo(conn, grupo_id, queues, em_grupo)
     pids = [p["id"] for p in partidas]
     if not pids:
         return {}
@@ -250,11 +270,13 @@ def perfil(conn, grupo_id: int, jogador_id: int, queues: set[int] = FLEX) -> dic
 # ----------------------------------------------------------------------
 # Formatação para o Discord (/recordes e /perfil)
 # ----------------------------------------------------------------------
-def formatar_recordes(conn, grupo_id: int, nome_grupo: str, queues: set[int] = FLEX) -> str:
-    rec = recordes_grupo(conn, grupo_id, queues)
-    total = len(_partidas_grupo(conn, grupo_id, queues))
-    recorte = "Flex" if queues == FLEX else "Normais"
-    L = [f"🏛️ **HALL DA FAMA — {nome_grupo}** ({recorte} · {total} partidas em grupo)"]
+def formatar_recordes(conn, grupo_id: int, nome_grupo: str, queues: set[int] = FLEX,
+                      em_grupo: Optional[int] = 1) -> str:
+    rec = recordes_grupo(conn, grupo_id, queues, em_grupo)
+    total = len(_partidas_grupo(conn, grupo_id, queues, em_grupo))
+    recorte = rotulo_recorte(queues)
+    ctx = "em grupo" if em_grupo == 1 else "no total"
+    L = [f"🏛️ **HALL DA FAMA — {nome_grupo}** ({recorte} · {total} partidas {ctx})"]
     if not rec:
         L.append("_(sem partidas nesse recorte ainda)_")
         return "\n".join(L)
@@ -288,12 +310,14 @@ def formatar_recordes(conn, grupo_id: int, nome_grupo: str, queues: set[int] = F
 
 
 def formatar_perfil(conn, grupo_id: int, jogador_id: int, nick: str,
-                    queues: set[int] = FLEX) -> str:
-    pf = perfil(conn, grupo_id, jogador_id, queues)
+                    queues: set[int] = FLEX, em_grupo: Optional[int] = 1) -> str:
+    pf = perfil(conn, grupo_id, jogador_id, queues, em_grupo)
+    recorte = rotulo_recorte(queues)
     if not pf:
-        return f"👤 **{nick}** — sem partidas em grupo nesse recorte ainda."
+        return f"👤 **{nick}** — sem partidas de {recorte} ainda."
     m = pf["medias"]
-    L = [f"👤 **{nick}** — {pf['jogos']} jogos em grupo · {pf['wr']}% WR", ""]
+    ctx = "em grupo" if em_grupo == 1 else f"de {recorte}"
+    L = [f"👤 **{nick}** — {pf['jogos']} jogos {ctx} · {pf['wr']}% WR", ""]
     L.append(f"📊 Médias: dano {m['dano']/1000:.1f}k · KDA {m['kda']:.1f} · "
              f"visão {m['visao']:.0f} · CS {m['farm']:.0f}")
     L.append(f"🏆 Recordes pessoais: maior dano {pf['rec_dano']/1000:.1f}k · "

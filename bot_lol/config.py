@@ -27,6 +27,11 @@ DB_PATH = Path(os.environ.get("BOT_LOL_DB_PATH", DATA_DIR / "bot_lol.db"))
 RIOT_REGIONAL = os.environ.get("RIOT_REGIONAL", "americas")
 RIOT_PLATFORM = os.environ.get("RIOT_PLATFORM", "br1")
 
+# Poller (ingestão automática): de quanto em quanto tempo checa partidas novas,
+# e quantas partidas recentes olhar por jogador a cada rodada.
+POLL_INTERVALO_MIN = int(os.environ.get("BOT_LOL_POLL_MIN", "5"))
+POLL_PARTIDAS_POR_JOGADOR = int(os.environ.get("BOT_LOL_POLL_N", "5"))
+
 # Segredos (podem estar vazios nesta fase; cada marco usa o seu).
 RIOT_API_KEY = os.environ.get("RIOT_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")

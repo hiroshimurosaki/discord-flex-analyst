@@ -62,3 +62,31 @@ def test_perfil_basico():
     assert round(pf["wr"]) == 67  # ganhou 2 de 3
     assert pf["rec_dano"] == 55000
     assert pf["melhor_duo"]["nick"] == "Qiak"
+
+
+def test_recorte_solo_isola_dos_jogos_em_grupo():
+    """Recorte Solo/Duo (em_grupo=None) enxerga o jogo solo; Flex (em_grupo=1) não."""
+    conn = db.get_connection(":memory:")
+    db.init_db(conn)
+    g = db.ensure_grupo(conn, "G", discord_guild_id="1")
+    jH = db.ensure_jogador(conn, g, "P-H", "Hiroshi")
+    # jogo SOLO: queue 420, em_grupo=0, só o Hiroshi do grupo na partida
+    pid = db.insert_partida(conn, g, "BR1_SOLO", 420, 1700, 10, 100, False, False)
+    db.insert_participacoes(conn, [
+        {"partida_id": pid, "jogador_id": jH, "puuid": "P-H", "team_id": 100,
+         "role": "MIDDLE", "campeao": "Ahri", "win": 1, "kills": 10, "deaths": 2,
+         "assists": 5, "dano": 40000, "ouro": 13000, "visao": 18, "farm": 210,
+         "kp": 0.5, "challenges_json": json.dumps({})},
+        {"partida_id": pid, "jogador_id": None, "puuid": "E1", "team_id": 200,
+         "role": "MIDDLE", "campeao": "Zed", "win": 0, "kills": 2, "deaths": 7,
+         "assists": 3, "dano": 18000, "ouro": 8000, "visao": 9, "farm": 150,
+         "kp": 0.3, "challenges_json": json.dumps({})},
+    ])
+    # Flex (time fechado) ignora o jogo solo.
+    assert records.perfil(conn, g, jH, records.FLEX, em_grupo=1) == {}
+    # Solo/Duo enxerga.
+    pf = records.perfil(conn, g, jH, records.SOLO, em_grupo=None)
+    assert pf["jogos"] == 1 and pf["wr"] == 100.0
+    assert pf["melhor_duo"] is None  # jogo solo não tem colega de grupo
+    rec = records.recordes_grupo(conn, g, records.SOLO, em_grupo=None)
+    assert rec["maior_dano"]["valor"] == 40000 and rec["maior_dano"]["nick"] == "Hiroshi"

@@ -63,3 +63,39 @@ def test_detectar_em_grupo():
     # só 1 membro -> não é grupo
     linhas2 = ingest.parse_participacoes(_match(), {"P-A": 1})
     assert ingest.detectar_em_grupo(linhas2) is False
+
+
+def _timeline_min(gold_por_pid_no_10: dict[int, int]) -> dict:
+    """Timeline mínima com 11 frames; o minuto 10 traz o ouro pedido."""
+    frames = [{"participantFrames": {}} for _ in range(11)]
+    frames[10]["participantFrames"] = {
+        str(pid): {"totalGold": g} for pid, g in gold_por_pid_no_10.items()}
+    return {"info": {"frames": frames}}
+
+
+def test_metricas_timeline_ouro_e_lanediff():
+    # dois mids, lados opostos -> lanediff@10 simétrico
+    match = {"info": {"participants": [
+        {"participantId": 1, "puuid": "P-A", "teamId": 100, "teamPosition": "MIDDLE"},
+        {"participantId": 2, "puuid": "P-B", "teamId": 200, "teamPosition": "MIDDLE"},
+    ]}}
+    m = ingest.metricas_timeline(match, _timeline_min({1: 5000, 2: 4200}))
+    assert m[1]["ouro_10"] == 5000
+    assert m[1]["lanediff_10"] == 800
+    assert m[2]["lanediff_10"] == -800
+
+
+def test_metricas_timeline_sem_timeline():
+    assert ingest.metricas_timeline(_match(), None) == {}
+
+
+def test_parse_usa_metricas_timeline():
+    """Com timeline, parse_participacoes preenche ouro_10/lanediff_10."""
+    m = _match()
+    # alinha posições p/ haver oponente direto do JUNGLE (P-A vs P-ENEMY)
+    m["info"]["participants"][2]["teamPosition"] = "JUNGLE"
+    tl = _timeline_min({1: 6000, 6: 5000})
+    linhas = ingest.parse_participacoes(m, {"P-A": 1}, tl)
+    a = next(l for l in linhas if l["puuid"] == "P-A")
+    assert a["ouro_10"] == 6000
+    assert a["lanediff_10"] == 1000

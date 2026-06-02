@@ -85,6 +85,9 @@ REGRAS INVIOLÁVEIS:
 - NUNCA invente ou calcule números. Use SOMENTE os do contexto. Se não está, não cite.
 - Honestidade: amostra pequena = indício, não veredito. Nada de dono da verdade em
   coisas subjetivas ("os dados apontam X").
+- Se houver uma seção "PERFIL VIVO", use-a como CONTEXTO do histórico (ex.: "vem
+  melhorando", "costuma apanhar de Irelia") pra dar profundidade — sem recalcular
+  nem tratar como fato desta partida.
 - Cada análise individual termina com 1 dica acionável.
 
 Responda em JSON EXATO, sem texto fora dele:

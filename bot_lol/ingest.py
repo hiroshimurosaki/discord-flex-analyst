@@ -34,19 +34,15 @@ def _clean_role(part: dict) -> Optional[str]:
     return pos if pos and pos != "Invalid" else None
 
 
-def parse_participacoes(match: dict, puuid_to_jogador: dict[str, int],
-                        timeline: Optional[dict] = None) -> list[dict]:
-    """Devolve uma linha por participante (os 10). jogador_id NULL = não-membro.
-    Inclui ouro@10/@15 e lanediff@10 quando há timeline."""
-    info = match.get("info", {})
-    parts = info.get("participants", [])
+def metricas_timeline(match: dict, timeline: Optional[dict]) -> dict[int, dict]:
+    """participantId -> {ouro_10, ouro_15, lanediff_10} a partir da timeline.
 
-    # KP precisa do total de kills do time.
-    team_kills: dict[int, int] = defaultdict(int)
-    for p in parts:
-        team_kills[p.get("teamId")] += p.get("kills", 0)
-
-    # Métricas de timeline (por participantId).
+    Fonte única: usada na ingestão (gravar no banco) E no post sob demanda
+    (quando a timeline só foi baixada depois — ex.: jogos solo). {} se sem timeline.
+    """
+    if not timeline:
+        return {}
+    parts = match.get("info", {}).get("participants", [])
     g10 = _gold_at(timeline, 10)
     g15 = _gold_at(timeline, 15)
     lanediff10: dict[int, int] = {}
@@ -65,6 +61,27 @@ def parse_participacoes(match: dict, puuid_to_jogador: dict[str, int],
                 if a in g10 and b in g10:
                     lanediff10[a] = g10[a] - g10[b]
                     lanediff10[b] = g10[b] - g10[a]
+    return {p.get("participantId"): {
+        "ouro_10": g10.get(p.get("participantId")),
+        "ouro_15": g15.get(p.get("participantId")),
+        "lanediff_10": lanediff10.get(p.get("participantId")),
+    } for p in parts}
+
+
+def parse_participacoes(match: dict, puuid_to_jogador: dict[str, int],
+                        timeline: Optional[dict] = None) -> list[dict]:
+    """Devolve uma linha por participante (os 10). jogador_id NULL = não-membro.
+    Inclui ouro@10/@15 e lanediff@10 quando há timeline."""
+    info = match.get("info", {})
+    parts = info.get("participants", [])
+
+    # KP precisa do total de kills do time.
+    team_kills: dict[int, int] = defaultdict(int)
+    for p in parts:
+        team_kills[p.get("teamId")] += p.get("kills", 0)
+
+    # Métricas de timeline (por participantId) — fonte única compartilhada.
+    tl_m = metricas_timeline(match, timeline)
 
     linhas = []
     for p in parts:
@@ -72,6 +89,7 @@ def parse_participacoes(match: dict, puuid_to_jogador: dict[str, int],
         puuid = p.get("puuid")
         tk = team_kills.get(p.get("teamId"), 0)
         kp = round((p.get("kills", 0) + p.get("assists", 0)) / tk, 3) if tk else 0.0
+        m_tl = tl_m.get(pid, {})
         linhas.append({
             "jogador_id": puuid_to_jogador.get(puuid),  # None = não-membro
             "puuid": puuid,
@@ -88,9 +106,9 @@ def parse_participacoes(match: dict, puuid_to_jogador: dict[str, int],
             "visao": p.get("visionScore"),
             "farm": p.get("totalMinionsKilled", 0) + p.get("neutralMinionsKilled", 0),
             "kp": kp,
-            "ouro_10": g10.get(pid),
-            "ouro_15": g15.get(pid),
-            "lanediff_10": lanediff10.get(pid),
+            "ouro_10": m_tl.get("ouro_10"),
+            "ouro_15": m_tl.get("ouro_15"),
+            "lanediff_10": m_tl.get("lanediff_10"),
             # 125 métricas pré-calculadas pela Riot, guardadas cruas (JSON).
             "challenges_json": json.dumps(p.get("challenges", {})),
         })

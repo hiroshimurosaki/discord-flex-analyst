@@ -32,6 +32,23 @@ def _load_cache(match_id: str):
     return match, tl
 
 
+def _tl_metricas_por_puuid(match, tl) -> dict[str, dict]:
+    """puuid -> {ouro_10, ouro_15, lanediff_10} a partir do cache da timeline.
+
+    Usado como fallback quando a partida foi ingerida SEM timeline (ex.: jogos
+    solo no backfill) mas a timeline foi baixada depois sob demanda."""
+    if not match or not tl:
+        return {}
+    from . import ingest
+    por_pid = ingest.metricas_timeline(match, tl)
+    out = {}
+    for p in match.get("info", {}).get("participants", []):
+        m = por_pid.get(p.get("participantId"))
+        if m:
+            out[p.get("puuid")] = m
+    return out
+
+
 def montar_post(conn, partida_id: int, narrador=None) -> str:
     """Post do time. Se `narrador` (callable: fatos->texto) for dado, preenche
     a 🎙️; senão, placeholder. Para o fluxo com cache, use fatos_partida()."""
@@ -88,6 +105,10 @@ def fatos_partida(conn, partida_id: int) -> str:
                  f"{_ROLE_PT.get(r['role'], '?'):<5}{kda:<10}{(r['dano'] or 0)/1000:>6.1f}k")
     L.append("```")
 
+    # Cache de partida/timeline (também alimenta o fallback de ouro@10 abaixo).
+    match, tl = _load_cache(p["match_id"])
+    tlm = _tl_metricas_por_puuid(match, tl)
+
     # --- Duelo de rota (vs oponente direto) ---
     L.append("**⚔️ Duelo de rota** (vs adversário direto, @10min)")
     for r in membros:
@@ -95,6 +116,8 @@ def fatos_partida(conn, partida_id: int) -> str:
         if not opp:
             continue
         ld = r["lanediff_10"]
+        if ld is None:
+            ld = tlm.get(r["puuid"], {}).get("lanediff_10")
         farm_d = (r["farm"] or 0) - (opp["farm"] or 0)
         sinal = "🟢" if (ld or 0) >= 0 else "🔴"
         ldtxt = f"ouro@10 {ld:+d}" if ld is not None else "ouro@10 s/ dado"
@@ -102,7 +125,6 @@ def fatos_partida(conn, partida_id: int) -> str:
                  f"— {ldtxt}, CS {farm_d:+d}")
 
     # --- Momentos-chave (da timeline em cache) ---
-    match, tl = _load_cache(p["match_id"])
     if match and tl:
         L.append("\n**🔑 Momentos-chave**")
         pm = moments.pid_map(match)
@@ -201,6 +223,9 @@ def fatos_jogador(conn, partida_id: int, jogador_id: int) -> Optional[str]:
              f"· ouro {(eu['ouro'] or 0)/1000:.1f}k · visão {eu['visao']} · CS {eu['farm']}")
     if opp:
         ld = eu["lanediff_10"]
+        if ld is None:
+            match, tl = _load_cache(p["match_id"])
+            ld = _tl_metricas_por_puuid(match, tl).get(eu["puuid"], {}).get("lanediff_10")
         sinal = "🟢" if (ld or 0) >= 0 else "🔴"
         ldtxt = f"ouro@10 {ld:+d}" if ld is not None else "sem ouro@10"
         L.append(f"⚔️ Rota vs {opp['campeao']}: {sinal} {ldtxt}, CS {(eu['farm'] or 0)-(opp['farm'] or 0):+d}")
