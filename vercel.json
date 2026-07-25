@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/interactions.py": {
+      "memory": 512,
+      "maxDuration": 10,
+      "includeFiles": "{bot_lol/**,data/bot_lol.db}"
+    }
+  }
+}

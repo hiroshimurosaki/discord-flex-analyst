@@ -270,10 +270,108 @@ def perfil(conn, grupo_id: int, jogador_id: int, queues: set[int] = FLEX,
 # ----------------------------------------------------------------------
 # Formatação para o Discord (/recordes e /perfil)
 # ----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# Materialização (ARQUITETURA 6.2)
+#
+# `recordes_grupo` varre todo o histórico do recorte. Isso é aceitável no ciclo
+# de ingestão, onde ninguém está esperando, e inaceitável num handler HTTP que
+# tem 3 segundos pra responder ao Discord. A conta não muda — muda QUANDO roda.
+# ----------------------------------------------------------------------
+
+# nome do recorte -> (filas, em_grupo). Espelha `_resolver_recorte` no bot.
+RECORTES: dict[str, tuple[set[int], Optional[int]]] = {
+    "flex": (FLEX, 1),
+    "normais": (NORMAIS, 1),
+    "solo": (SOLO, None),
+}
+
+
+def nome_recorte(queues: set[int]) -> str:
+    """Chave de armazenamento a partir do conjunto de filas."""
+    for nome, (qs, _) in RECORTES.items():
+        if qs == queues:
+            return nome
+    return "flex"
+
+
+def materializar(conn, grupo_id: int, recortes: Optional[list[str]] = None) -> int:
+    """Recalcula e grava o Hall da Fama de cada recorte. Devolve nº de linhas.
+
+    Chamado ao fim do ciclo de ingestão. Se ninguém chamar, as leituras caem no
+    caminho antigo (varredura completa) — degrada em latência, nunca em dado
+    errado, que é a direção certa pra degradar.
+    """
+    import json as _json
+
+    alvos = recortes or list(RECORTES)
+    linhas = 0
+    for nome in alvos:
+        queues, em_grupo = RECORTES[nome]
+        rec = recordes_grupo(conn, grupo_id, queues, em_grupo)
+        total = len(_partidas_grupo(conn, grupo_id, queues, em_grupo))
+
+        conn.execute("DELETE FROM recordes WHERE grupo_id=? AND recorte=?",
+                     (grupo_id, nome))
+        # `_total` entra como pseudo-categoria: o cabeçalho do Hall da Fama
+        # mostra a contagem de partidas, e recontá-la seria outra varredura.
+        conn.execute(
+            "INSERT INTO recordes (grupo_id, recorte, categoria, valor, dados_json) "
+            "VALUES (?, ?, '_total', ?, '{}')", (grupo_id, nome, float(total)))
+        for cat, r in rec.items():
+            # `valor` vai inteiro no dados_json e float na coluna: a coluna é
+            # pra ordenar/consultar, o JSON é o que volta pro formatador. Sem
+            # isso, "27 abates" viraria "27.0 abates" na volta do REAL.
+            conn.execute(
+                "INSERT INTO recordes (grupo_id, recorte, categoria, valor, dados_json) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (grupo_id, nome, cat, float(r["valor"]),
+                 _json.dumps(r, ensure_ascii=False)))
+            linhas += 1
+    conn.commit()
+    return linhas
+
+
+def recordes_materializados(conn, grupo_id: int, queues: set[int] = FLEX
+                            ) -> Optional[tuple[dict, int]]:
+    """Lê o Hall da Fama da tabela. `(rec, total)` ou None se nunca materializado.
+
+    Uma query indexada, em vez de milhares. É o que faz o /recordes caber no
+    orçamento de 3 segundos do Discord.
+    """
+    import json as _json
+
+    rows = conn.execute(
+        "SELECT categoria, valor, dados_json FROM recordes "
+        "WHERE grupo_id=? AND recorte=?",
+        (grupo_id, nome_recorte(queues))).fetchall()
+    if not rows:
+        return None
+
+    rec: dict[str, dict] = {}
+    total = 0
+    for r in rows:
+        if r["categoria"] == "_total":
+            total = int(r["valor"])
+            continue
+        try:
+            # dados_json guarda o registro inteiro, `valor` incluso e com o tipo
+            # original — a coluna REAL serviria só pra ordenar.
+            rec[r["categoria"]] = _json.loads(r["dados_json"])
+        except ValueError:
+            rec[r["categoria"]] = {"valor": r["valor"]}
+    return rec, total
+
+
 def formatar_recordes(conn, grupo_id: int, nome_grupo: str, queues: set[int] = FLEX,
-                      em_grupo: Optional[int] = 1) -> str:
-    rec = recordes_grupo(conn, grupo_id, queues, em_grupo)
-    total = len(_partidas_grupo(conn, grupo_id, queues, em_grupo))
+                      em_grupo: Optional[int] = 1, *, usar_cache: bool = True) -> str:
+    """Hall da Fama formatado. Por padrão usa a tabela materializada e só cai na
+    varredura completa se ela ainda não existir."""
+    cached = recordes_materializados(conn, grupo_id, queues) if usar_cache else None
+    if cached is not None:
+        rec, total = cached
+    else:
+        rec = recordes_grupo(conn, grupo_id, queues, em_grupo)
+        total = len(_partidas_grupo(conn, grupo_id, queues, em_grupo))
     recorte = rotulo_recorte(queues)
     ctx = "em grupo" if em_grupo == 1 else "no total"
     L = [f"🏛️ **HALL DA FAMA — {nome_grupo}** ({recorte} · {total} partidas {ctx})"]

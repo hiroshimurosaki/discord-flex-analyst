@@ -10,6 +10,7 @@ Regras:
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence
@@ -19,9 +20,21 @@ from .. import config
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 
-def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
-    """Abre conexão SQLite com chaves estrangeiras e rows como dict."""
+def get_connection(db_path: Optional[Path] = None, *,
+                   somente_leitura: bool = False) -> sqlite3.Connection:
+    """Abre conexão SQLite com chaves estrangeiras e rows como dict.
+
+    `somente_leitura=True` é o modo do Vercel: lá o filesystem é read-only e o
+    banco vem junto no bundle do deploy. Criar diretório ou ligar WAL falharia —
+    ambos escrevem em disco — então este caminho não faz nem um nem outro.
+    """
     path = Path(db_path) if db_path else config.DB_PATH
+
+    if somente_leitura:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+        conn.row_factory = sqlite3.Row
+        return conn
+
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
@@ -165,6 +178,29 @@ def salvar_analises(conn: sqlite3.Connection, partida_id: int, texto_time: str,
         "INSERT INTO analises (partida_id, tipo, jogador_id, texto, modelo) "
         "VALUES (?, 'individual', ?, ?, ?)",
         [(partida_id, jid, txt, modelo) for jid, txt in por_jogador.items()])
+    conn.commit()
+
+
+def get_momentos(conn: sqlite3.Connection, partida_id: int) -> Optional[dict]:
+    """Momentos derivados da timeline, ou None se a partida não tem timeline."""
+    row = conn.execute("SELECT dados_json FROM momentos WHERE partida_id=?",
+                       (partida_id,)).fetchone()
+    if not row:
+        return None
+    try:
+        return json.loads(row["dados_json"])
+    except ValueError:
+        return None
+
+
+def salvar_momentos(conn: sqlite3.Connection, partida_id: int, dados: dict) -> None:
+    """Regrava os momentos da partida. Derivado: sobrescrever é legítimo."""
+    conn.execute(
+        "INSERT INTO momentos (partida_id, formato, dados_json) VALUES (?, ?, ?) "
+        "ON CONFLICT(partida_id) DO UPDATE SET "
+        "  formato=excluded.formato, dados_json=excluded.dados_json, "
+        "  criado_em=datetime('now')",
+        (partida_id, dados.get("v", 1), json.dumps(dados, ensure_ascii=False)))
     conn.commit()
 
 

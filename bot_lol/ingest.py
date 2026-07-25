@@ -149,4 +149,17 @@ def ingest_match(conn, grupo_id: int, puuid_to_jogador: dict[str, int],
     for ln in linhas:
         ln["partida_id"] = partida_id
     db.insert_participacoes(conn, linhas)
+
+    # Momentos derivados: a timeline crua só existe aqui (e em cache/, que é
+    # disco local). Condensar agora é o que faz o post continuar completo quando
+    # ele for montado noutro lugar — no Actions ou no Vercel, sem cache nenhum.
+    if timeline is not None:
+        from . import moments
+        try:
+            db.salvar_momentos(conn, partida_id, moments.derivar(match, timeline))
+        except Exception as e:
+            # Timeline malformada/curta não pode derrubar a ingestão: o fato
+            # (partida + participações) já está gravado e é o que não se recupera.
+            print(f"[ingest] momentos de {match_id} falharam: {e}")
+
     return partida_id

@@ -1,0 +1,88 @@
+name: ciclo
+
+# Repo público => minutos de Actions ilimitados, então dá pra manter os 5
+# minutos originais do poller. Num repo privado isto queimaria a cota gratuita
+# em ~3 dias (288 runs/dia x ~2 min, faturados com arredondamento pra cima).
+#
+# O cron do GitHub não é pontual: ele atrasa e às vezes pula sob carga. Os
+# minutos quebrados abaixo evitam o topo da hora, que é quando o mundo inteiro
+# agenda. Trate 5 minutos como o piso otimista, não como garantia.
+on:
+  schedule:
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * * *'
+  workflow_dispatch:            # botão manual, para testar sem esperar o cron
+    inputs:
+      dry_run:
+        description: 'Não postar no Discord, só imprimir'
+        type: boolean
+        default: false
+
+# Dois ciclos ao mesmo tempo brigariam pelo push do banco. Serializa, e NÃO
+# cancela o que está rodando: um ciclo morto no meio pode ter ingerido partidas
+# sem postar, e elas não voltam a ser "novas".
+concurrency:
+  group: ciclo
+  cancel-in-progress: false
+
+permissions:
+  contents: write               # necessário pro commit do banco
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # O CLI é a "LLM" deste projeto (ver bot_lol/llm.py). O cache evita pagar
+      # ~30s de npm install em todo ciclo.
+      - name: Cache do Claude Code
+        id: cache-claude
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm-global
+          key: claude-code-${{ runner.os }}-v1
+
+      - name: Instalar Claude Code
+        run: |
+          npm config set prefix ~/.npm-global
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+          if ! ~/.npm-global/bin/claude --version >/dev/null 2>&1; then
+            npm install -g @anthropic-ai/claude-code
+          fi
+
+      - name: Rodar o ciclo
+        env:
+          # Token da assinatura (claude setup-token). NÃO defina ANTHROPIC_API_KEY:
+          # ela tem precedência e faria as chamadas caírem em créditos de API.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          python -m scripts.ciclo ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      # O banco é o estado do bot e o repo é onde ele mora — é isso que permite
+      # o Vercel ler os mesmos dados sem banco hospedado. O `git diff --quiet`
+      # garante que ciclos sem partida nova não geram commit (288 commits/dia
+      # vazios inchariam o histórico à toa).
+      - name: Commitar o banco
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name  'bot-lol'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f data/bot_lol.db
+          if git diff --staged --quiet; then
+            echo 'nada mudou'
+          else
+            git commit -m "chore(db): ciclo $(date -u +%FT%TZ)"
+            # Outro ciclo pode ter empurrado enquanto este rodava.
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+            git push
+          fi

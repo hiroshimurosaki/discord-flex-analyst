@@ -96,6 +96,44 @@ CREATE TABLE IF NOT EXISTS analises (
 );
 
 -- ============================================================
+-- momentos — timeline condensada (DERIVADO, regravável como `analises`)
+--
+-- A timeline crua vive em cache/ (disco local, fora do Git). Quando o ciclo
+-- roda no GitHub Actions esse cache nasce vazio, e sem esta tabela o post
+-- perderia a seção "🔑 Momentos-chave" sem emitir erro nenhum.
+-- Guardamos o derivado (swing, briga decisiva, objetivos, multikills,
+-- pick-offs) em vez do JSON cru: é ordens de grandeza menor e é o que o post
+-- realmente usa. `formato` versiona o shape pra dar pra reprocessar.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS momentos (
+    partida_id  INTEGER PRIMARY KEY REFERENCES partidas(id),
+    formato     INTEGER NOT NULL DEFAULT 1,
+    dados_json  TEXT NOT NULL,
+    criado_em   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ============================================================
+-- recordes — Hall da Fama materializado (DERIVADO, regravável)
+--
+-- `records.recordes_grupo()` varre TODAS as partidas do recorte fazendo ~4-5
+-- queries por partida: o custo de responder cresce com o histórico do grupo
+-- (ARQUITETURA 6.2). Localmente isso só ficava lento; no handler HTTP do
+-- Discord é fatal, porque a resposta tem 3 segundos de prazo.
+--
+-- A conta continua sendo a mesma — ela só passa a rodar uma vez por ciclo de
+-- ingestão (no CI, onde tempo é de graça) em vez de a cada leitura.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS recordes (
+    grupo_id    INTEGER NOT NULL REFERENCES grupos(id),
+    recorte     TEXT NOT NULL,           -- 'flex' | 'normais' | 'solo'
+    categoria   TEXT NOT NULL,           -- 'maior_dano', 'comeback', ...
+    valor       REAL NOT NULL,
+    dados_json  TEXT NOT NULL,           -- nick, campeao, partida_id, data, dur...
+    criado_em   TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (grupo_id, recorte, categoria)
+);
+
+-- ============================================================
 -- Índices para as queries quentes (sempre por grupo/jogador).
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_analises_partida ON analises(partida_id);

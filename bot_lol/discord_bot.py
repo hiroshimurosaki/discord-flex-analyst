@@ -25,7 +25,7 @@ import discord
 from discord import app_commands
 from discord.ext import tasks
 
-from . import analise, config, poller, post, records, tendencias
+from . import analise, config, llm, poller, post, records, tendencias
 from .db import database as db
 
 VERDE, VERMELHO, AZUL = 0x2ECC71, 0xE74C3C, 0x3498DB
@@ -310,7 +310,7 @@ async def _enviar_partida(interaction, conn, g, partida_id, jogador_nick=None) -
     def _build():
         c = db.get_connection()
         try:
-            analises = analise.obter_analises(c, partida_id) if config.GEMINI_API_KEY else None
+            analises = analise.obter_analises(c, partida_id) if llm.disponivel() else None
             if jogador_nick:
                 row = c.execute(
                     "SELECT id, nick_display FROM jogadores WHERE grupo_id=? AND nick_display=? COLLATE NOCASE",
@@ -440,7 +440,7 @@ async def _postar_automatico(grupo_id: int, partida_id: int) -> None:
 
         await asyncio.to_thread(_garantir_cache_partida, partida_id)
         analises = (await asyncio.to_thread(_gerar_analises, partida_id)
-                    if config.GEMINI_API_KEY else None)
+                    if llm.disponivel() else None)
 
         p = conn.execute("SELECT em_grupo FROM partidas WHERE id=?", (partida_id,)).fetchone()
         textos: list[tuple[str, int]] = []

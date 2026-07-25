@@ -1,14 +1,33 @@
-"""Fronteira da LLM — `analisar(contexto) -> texto`.
+"""Fronteira da LLM — os fatos entram, a narrativa sai.
 
-Regra de ouro (bot-lol.md, seção 2): a LLM NUNCA calcula; ela só narra
-números que o código já calculou. Trocar de provedor/modelo = mexer só aqui.
+Regra de ouro (bot-lol.md, seção 2): a LLM NUNCA calcula; ela só narra números
+que o código já calculou. Trocar de provedor/modelo = mexer só aqui.
 
-Provedor atual: Gemini (tier gratuito). O nome exato do modelo NÃO é cravado
-de memória — `resolver_modelos()` lê os modelos disponíveis na conta e escolhe
-o Flash/Pro reais, evitando quebrar quando a Google renomeia as gerações.
+Provedor atual: **Claude Code em modo headless** (`claude -p`), não a API HTTP.
+A diferença importa: o CLI autentica pela assinatura (OAuth), então o custo fica
+dentro do plano em vez de bilhar créditos de API. Em CI o token vem da variável
+`CLAUDE_CODE_OAUTH_TOKEN` (ver `.github/workflows/ciclo.yml`).
+
+Três flags fazem o `claude` deixar de ser um agente e virar uma chamada de
+modelo, que é tudo o que este projeto quer dele:
+
+  --tools ""      nenhuma ferramenta: ele não lê arquivo, não roda bash, não
+                  tem como "ir conferir" nada. É o que torna a regra "a LLM não
+                  calcula" verificável, e não apenas combinada.
+  --safe-mode     ignora CLAUDE.md, skills, hooks, plugins e MCP do ambiente —
+                  o prompt é só o que está aqui, rode onde rodar.
+  --json-schema   a saída é validada contra o schema pelo próprio CLI, o que
+                  substitui o `response_mime_type` + `json.loads()` na esperança.
+
+NÃO use `--bare`: apesar do nome sugerir o mesmo, ele ignora
+CLAUDE_CODE_OAUTH_TOKEN e exige ANTHROPIC_API_KEY, ou seja, desliga a assinatura.
 """
 from __future__ import annotations
 
+import json
+import os
+import shutil
+import subprocess
 from typing import Optional
 
 from . import config
@@ -59,19 +78,6 @@ Devolva APENAS o texto da análise individual.
 """
 
 
-def narrador(modelo: Optional[str] = None):
-    """Devolve um callable (fatos -> narrativa do time) pra injetar no post."""
-    m = modelo or config.GEMINI_MODEL
-    return lambda fatos: analisar(fatos, m)
-
-
-def narrador_individual(alvo: str, modelo: Optional[str] = None):
-    """Callable (fatos -> análise focada no jogador `alvo`)."""
-    m = modelo or config.GEMINI_MODEL
-    sp = SYSTEM_PROMPT_INDIVIDUAL.format(alvo=alvo)
-    return lambda fatos: analisar(fatos, m, system_prompt=sp)
-
-
 SYSTEM_PROMPT_LOTE = """\
 Você é o comentarista do grupo de League of Legends — analista com bom humor que
 conhece os jogadores. Escreve em português do Brasil.
@@ -89,98 +95,165 @@ REGRAS INVIOLÁVEIS:
   melhorando", "costuma apanhar de Irelia") pra dar profundidade — sem recalcular
   nem tratar como fato desta partida.
 - Cada análise individual termina com 1 dica acionável.
-
-Responda em JSON EXATO, sem texto fora dele:
-{{"time": "<narrativa do time>", "jogadores": {{"<nick exatamente como na lista>": "<análise>", ...}}}}
+- No campo `nick`, repita o nome EXATAMENTE como aparece na lista acima.
 """
 
-
-def analisar_lote(fatos: str, membros: list[str], modelo: Optional[str] = None,
-                  *, temperatura: float = 0.8) -> dict:
-    """Uma chamada -> narrativa do time + análise de cada jogador. {time, jogadores}."""
-    import json as _json
-    from google import genai
-    from google.genai import types
-
-    key = config.GEMINI_API_KEY
-    if not key:
-        raise RuntimeError("GEMINI_API_KEY ausente — defina no .env.")
-    m = modelo or config.GEMINI_MODEL
-    client = genai.Client(api_key=key)
-    sp = SYSTEM_PROMPT_LOTE.format(membros=", ".join(membros))
-
-    base = dict(system_instruction=sp, temperature=temperatura,
-                max_output_tokens=4096, response_mime_type="application/json")
-
-    def _gerar(cfg):
-        return client.models.generate_content(model=m, contents=fatos, config=cfg)
-
-    try:
-        cfg = types.GenerateContentConfig(
-            **base, thinking_config=types.ThinkingConfig(thinking_budget=0))
-        resp = _gerar(cfg)
-    except Exception:
-        resp = _gerar(types.GenerateContentConfig(**base))
-
-    data = _json.loads(resp.text or "{}")
-    jog = data.get("jogadores", {})
-    if isinstance(jog, list):  # tolera formato [{nick, analise}]
-        jog = {d.get("nick"): d.get("analise", "") for d in jog}
-    return {"time": data.get("time", ""), "jogadores": jog, "modelo": m}
+# O schema é a garantia de formato. `jogadores` é lista (e não objeto com uma
+# chave por nick) porque JSON Schema não expressa chaves dinâmicas junto com
+# additionalProperties: false — `analisar_lote` converte pra dict na saída.
+_SCHEMA_LOTE = {
+    "type": "object",
+    "properties": {
+        "time": {"type": "string"},
+        "jogadores": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "nick": {"type": "string"},
+                    "analise": {"type": "string"},
+                },
+                "required": ["nick", "analise"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["time", "jogadores"],
+    "additionalProperties": False,
+}
 
 
-def resolver_modelos(client) -> dict:
-    """Escolhe Flash e Pro reais entre os modelos disponíveis na conta."""
-    nomes = []
-    for m in client.models.list():
-        acoes = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", [])
-        if not acoes or "generateContent" in acoes:
-            nomes.append(m.name.replace("models/", ""))
-
-    def escolher(palavra, evitar=()):
-        cands = [n for n in nomes if palavra in n.lower()
-                 and not any(e in n.lower() for e in evitar)
-                 and "preview" not in n.lower() and "exp" not in n.lower()]
-        if not cands:
-            return None
-        # prefere alias 'latest'; senão, o nome "maior" (versão mais nova)
-        latest = [n for n in cands if n.endswith("latest")]
-        return sorted(latest or cands)[-1]
-
-    return {"flash": escolher("flash", evitar=("lite",)),
-            "pro": escolher("pro"),
-            "flash-lite": escolher("flash-lite") or escolher("lite")}
+class LLMIndisponivel(RuntimeError):
+    """O CLI não está instalado/autenticado — o chamador decide se degrada."""
 
 
-def analisar(contexto: str, modelo: str, *, temperatura: float = 0.8,
-             system_prompt: str = SYSTEM_PROMPT,
-             thinking_budget: Optional[int] = 0,
-             max_output_tokens: int = 2048) -> str:
-    """Gera a narrativa de uma partida. `contexto` = os fatos determinísticos.
+def disponivel() -> bool:
+    """True se dá pra chamar o Claude. Usado pra decidir entre gerar e degradar."""
+    return shutil.which(config.CLAUDE_BIN) is not None
 
-    thinking_budget=0 desliga o "pensamento" (narração não precisa) e evita
-    que ele consuma o orçamento de saída. Modelos que exigem thinking (ex.: Pro)
-    rejeitam 0 — nesse caso, refaz sem o ThinkingConfig.
+
+def _env_limpo() -> dict:
+    """Ambiente do subprocesso sem o que atrapalha o `claude` filho.
+
+    Duas limpezas, por motivos diferentes:
+
+    1. `ANTHROPIC_API_KEY` — na ordem de precedência do Claude Code ela é a 3ª e
+       `CLAUDE_CODE_OAUTH_TOKEN` é a 5ª, então uma chave esquecida no ambiente
+       faz o CLI cobrar de créditos de API em vez da assinatura, e falhar.
+    2. `CLAUDE_CODE_*` / `CLAUDECODE` — quando o bot é rodado de dentro de uma
+       sessão do Claude Code (que é como você vai testar), o filho herdaria o
+       estado da sessão pai. Um processo limpo é reprodutível; um aninhado não.
     """
-    from google import genai
-    from google.genai import types
+    env = os.environ.copy()
+    env.pop("ANTHROPIC_API_KEY", None)
+    for k in list(env):
+        if k.startswith("CLAUDE_CODE_") or k in ("CLAUDECODE", "CLAUDE_PID",
+                                                 "CLAUDE_EFFORT"):
+            env.pop(k, None)
+    # ...mas o token de CI é justamente um CLAUDE_CODE_*: preserva.
+    if tok := os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = tok
+    return env
 
-    key = config.GEMINI_API_KEY
-    if not key:
-        raise RuntimeError("GEMINI_API_KEY ausente — defina no .env.")
-    client = genai.Client(api_key=key)
 
-    base = dict(system_instruction=system_prompt, temperature=temperatura,
-                max_output_tokens=max_output_tokens)
+def _chamar(prompt: str, system_prompt: str, *, schema: Optional[dict] = None,
+            modelo: Optional[str] = None):
+    """Roda `claude -p` e devolve o envelope JSON já parseado.
 
-    def _gerar(cfg):
-        return client.models.generate_content(model=modelo, contents=contexto, config=cfg)
+    Uma chamada, sem ferramentas e sem estado. `stdin` vai pra /dev/null porque
+    senão o CLI espera 3 segundos por entrada que nunca vem.
+    """
+    if not disponivel():
+        raise LLMIndisponivel(
+            f"binário '{config.CLAUDE_BIN}' não encontrado. Instale o Claude Code "
+            "(npm i -g @anthropic-ai/claude-code) e autentique com `claude` ou "
+            "com CLAUDE_CODE_OAUTH_TOKEN.")
+
+    cmd = [
+        config.CLAUDE_BIN, "-p", prompt,
+        "--model", modelo or config.CLAUDE_MODEL,
+        "--system-prompt", system_prompt,
+        "--tools", "",
+        "--output-format", "json",
+        "--no-session-persistence",
+        "--safe-mode",
+        "--effort", config.CLAUDE_EFFORT,
+    ]
+    if schema is not None:
+        cmd += ["--json-schema", json.dumps(schema, ensure_ascii=False)]
 
     try:
-        cfg = types.GenerateContentConfig(
-            **base, thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget))
-        resp = _gerar(cfg)
-    except Exception:
-        # modelo não aceita esse budget de thinking -> usa o padrão dele
-        resp = _gerar(types.GenerateContentConfig(**base))
-    return (resp.text or "").strip()
+        proc = subprocess.run(
+            cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+            timeout=config.CLAUDE_TIMEOUT_S, env=_env_limpo())
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"claude -p estourou {config.CLAUDE_TIMEOUT_S}s") from e
+
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"claude -p saiu com {proc.returncode}: {(proc.stderr or '')[-500:]}")
+
+    try:
+        env = json.loads(proc.stdout)
+    except ValueError as e:
+        raise RuntimeError(
+            f"claude -p devolveu saída não-JSON: {proc.stdout[:300]}") from e
+
+    if env.get("is_error"):
+        raise RuntimeError(f"claude -p: {str(env.get('result'))[:500]}")
+    return env
+
+
+def analisar_lote(fatos: str, membros: list[str],
+                  modelo: Optional[str] = None) -> dict:
+    """Uma chamada -> narrativa do time + análise de cada jogador.
+
+    Devolve {"time": str, "jogadores": {nick: str}, "modelo": str}. A forma do
+    retorno é a mesma de antes de propósito: `analise.py` não muda.
+    """
+    env = _chamar(
+        fatos,
+        SYSTEM_PROMPT_LOTE.format(membros=", ".join(membros)),
+        schema=_SCHEMA_LOTE,
+        modelo=modelo,
+    )
+
+    # `structured_output` já vem validado contra o schema. O fallback pro
+    # `result` cru cobre versões do CLI que não populem o campo.
+    data = env.get("structured_output")
+    if not isinstance(data, dict):
+        data = json.loads(env.get("result") or "{}")
+
+    jogadores = data.get("jogadores") or []
+    if isinstance(jogadores, list):
+        jogadores = {j["nick"]: j.get("analise", "")
+                     for j in jogadores if isinstance(j, dict) and j.get("nick")}
+
+    return {
+        "time": data.get("time", ""),
+        "jogadores": jogadores,
+        "modelo": modelo or config.CLAUDE_MODEL,
+    }
+
+
+def analisar(contexto: str, modelo: Optional[str] = None, *,
+             system_prompt: str = SYSTEM_PROMPT) -> str:
+    """Gera UM texto (narrativa do time ou análise individual) a partir dos fatos.
+
+    Caminho avulso: o fluxo normal usa `analisar_lote`, que resolve time e
+    jogadores numa chamada só e cacheia tudo.
+    """
+    env = _chamar(contexto, system_prompt, modelo=modelo)
+    return (env.get("result") or "").strip()
+
+
+def narrador(modelo: Optional[str] = None):
+    """Devolve um callable (fatos -> narrativa do time) pra injetar no post."""
+    return lambda fatos: analisar(fatos, modelo)
+
+
+def narrador_individual(alvo: str, modelo: Optional[str] = None):
+    """Callable (fatos -> análise focada no jogador `alvo`)."""
+    sp = SYSTEM_PROMPT_INDIVIDUAL.format(alvo=alvo)
+    return lambda fatos: analisar(fatos, modelo, system_prompt=sp)

@@ -5,7 +5,12 @@ discord.py==2.4.0
 # audioop foi removido no Python 3.13; discord.py precisa deste backport.
 audioop-lts==0.2.1; python_version >= "3.13"
 
-google-genai==2.7.0
+# A LLM não é uma dependência Python: é o CLI do Claude Code chamado por
+# subprocess (ver bot_lol/llm.py). Instale com:
+#   npm install -g @anthropic-ai/claude-code
+
+# Verificação da assinatura Ed25519 dos webhooks de Interactions (Vercel).
+PyNaCl==1.5.0
 
 # Dev/testes:
 pytest==8.3.3

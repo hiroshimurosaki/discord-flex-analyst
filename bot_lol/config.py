@@ -34,11 +34,34 @@ POLL_PARTIDAS_POR_JOGADOR = int(os.environ.get("BOT_LOL_POLL_N", "5"))
 
 # Segredos (podem estar vazios nesta fase; cada marco usa o seu).
 RIOT_API_KEY = os.environ.get("RIOT_API_KEY", "")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN", "")
 DISCORD_GUILD_ID = os.environ.get("DISCORD_GUILD_ID", "")
 DISCORD_CANAL_ID = os.environ.get("DISCORD_CANAL_ID", "")
+
+# Webhook do canal — é assim que o ciclo automático posta sem gateway aberto.
+# Necessário no GitHub Actions, onde não há processo de bot rodando.
+DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+
+# Interactions HTTP (Vercel): a chave pública do app valida a assinatura Ed25519
+# que o Discord manda em cada request. Sem ela o handler recusa tudo.
+DISCORD_PUBLIC_KEY = os.environ.get("DISCORD_PUBLIC_KEY", "")
+DISCORD_APP_ID = os.environ.get("DISCORD_APP_ID", "")
+
+# --- LLM: Claude Code em modo headless (`claude -p`) ---
+# Não é a API HTTP: é o CLI oficial autenticado pela assinatura (OAuth), o que
+# mantém o custo dentro do plano. Em CI, o token vem de CLAUDE_CODE_OAUTH_TOKEN
+# (gerado por `claude setup-token`, validade de 1 ano).
+#
+# ATENÇÃO: ANTHROPIC_API_KEY tem precedência sobre CLAUDE_CODE_OAUTH_TOKEN. Se
+# ela estiver setada no ambiente, o Claude tenta cobrar de créditos de API em vez
+# da assinatura — por isso `llm.py` a remove do ambiente do subprocesso.
+# O prefixo BOT_LOL_ não é estilo: `CLAUDE_EFFORT` (sem prefixo) JÁ É exportado
+# pelo próprio Claude Code, então um bot rodado de dentro de uma sessão herdaria
+# o effort da sessão sem ninguém perceber.
+CLAUDE_BIN = os.environ.get("BOT_LOL_CLAUDE_BIN", "claude")
+CLAUDE_MODEL = os.environ.get("BOT_LOL_CLAUDE_MODEL", "sonnet")
+CLAUDE_EFFORT = os.environ.get("BOT_LOL_CLAUDE_EFFORT", "low")
+CLAUDE_TIMEOUT_S = int(os.environ.get("BOT_LOL_CLAUDE_TIMEOUT_S", "180"))
 
 
 def ensure_dirs() -> None:

@@ -208,6 +208,76 @@ def detect_pickoffs(match: dict, timeline: dict, kills: list[dict],
     return picks
 
 
+def derivar(match: dict, timeline: dict) -> dict:
+    """Condensa a timeline nos momentos que o post usa — pronto pra persistir.
+
+    Por que isto existe: a timeline crua é o objeto caro (minuto a minuto, os 10
+    jogadores) e vive em `cache/`, que é disco local. No GitHub Actions o
+    `cache/` nasce vazio a cada run, e o post perderia a seção de momentos EM
+    SILÊNCIO — os números continuam batendo, só some a parte interessante.
+
+    A saída é auto-contida e serializável: identifica jogadores por `puuid` (o
+    `participantId` só faz sentido dentro de um match) e não guarda nada que dê
+    pra recalcular a partir do banco. É derivado, então é regravável — se a
+    heurística de pick-off melhorar, reprocessa sem re-ingerir nada.
+    """
+    pm = pid_map(match)
+
+    series = team_gold_series(match, timeline)
+    swing = None
+    if len(series) >= 2:
+        s = gold_swings(series, top=1)[0]
+        swing = {"lider_team": 100 if s["delta"] > 0 else 200,
+                 "delta": s["delta"],
+                 "de_min": s["de_min"], "ate_min": s["ate_min"]}
+
+    kills = parse_kills(match, timeline)
+
+    briga = None
+    fights = teamfights(kills)
+    if fights:
+        d = max(fights, key=lambda f: (abs(f["saldo_100"]), f["valor_ouro"]))
+        briga = {"ini": d["ini"], "fim": d["fim"], "n_kills": d["n_kills"],
+                 "vencedor_team": 100 if d["saldo_100"] > 0 else 200}
+
+    objs = objectives(match, timeline)
+    dragoes: dict[int, int] = {100: 0, 200: 0}
+    barao: dict[int, Optional[float]] = {100: None, 200: None}
+    for o in objs:
+        time_ = o.get("time")
+        if time_ not in (100, 200):
+            continue
+        if o["tipo"].startswith("Dragão"):
+            dragoes[time_] += 1
+        elif o["tipo"] == "Barão" and barao[time_] is None:
+            barao[time_] = o["t"]
+
+    mks = []
+    for mk in multikills(match, timeline):
+        inf = pm.get(mk["killer"])
+        if inf and inf.get("puuid"):
+            mks.append({"puuid": inf["puuid"], "campeao": mk["jogador"],
+                        "tamanho": mk["tamanho"], "t": mk["t"]})
+    mks.sort(key=lambda m: m["tamanho"], reverse=True)
+
+    picks = []
+    for pk in detect_pickoffs(match, timeline, kills):
+        inf = pm.get(pk["victim"])
+        if inf and inf.get("puuid"):
+            picks.append({"puuid": inf["puuid"], "campeao": pk["vitima"],
+                          "regiao": pk["regiao"], "t": pk["t"]})
+
+    return {
+        "v": 1,                       # versão do formato; muda se o shape mudar
+        "swing": swing,
+        "briga_decisiva": briga,
+        "dragoes": {str(k): v for k, v in dragoes.items()},
+        "barao": {str(k): v for k, v in barao.items()},
+        "multikills": mks,
+        "pickoffs": picks,
+    }
+
+
 def objectives(match: dict, timeline: dict) -> list[dict]:
     pm = pid_map(match)
     out = []

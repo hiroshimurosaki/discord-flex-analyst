@@ -21,8 +21,7 @@ def obter_analises(conn, partida_id: int, modelo: Optional[str] = None,
         if cached and cached.get("time"):
             return cached
 
-    from . import config
-    if not config.GEMINI_API_KEY:
+    if not llm.disponivel():
         return None
 
     # membros da partida (jogadores do grupo que participaram)

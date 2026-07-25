@@ -5,10 +5,18 @@
 config.local.*
 *.key
 
-# === Dados locais (estado / cache, não vão pro Git) ===
-data/
+# === Dados locais (estado / cache) ===
+# EXCEÇÃO: data/bot_lol.db é versionado de propósito. Ele é o estado do bot, e
+# o GitHub Actions não tem disco entre runs — o repo É o banco. É também o que
+# permite ao Vercel servir os slash commands lendo o mesmo arquivo, sem banco
+# hospedado. Ver .github/workflows/ciclo.yml.
+data/*
+!data/bot_lol.db
+
+# cache/ (JSONs crus de match e timeline) continua fora: é grande, é reconstruível
+# pela Riot API, e o que o post precisa dele já vira a tabela `momentos` na
+# ingestão (ver bot_lol/moments.py:derivar).
 cache/
-*.db
 *.sqlite
 *.sqlite3
 analise_flex.json

@@ -90,3 +90,40 @@ def test_recorte_solo_isola_dos_jogos_em_grupo():
     assert pf["melhor_duo"] is None  # jogo solo não tem colega de grupo
     rec = records.recordes_grupo(conn, g, records.SOLO, em_grupo=None)
     assert rec["maior_dano"]["valor"] == 40000 and rec["maior_dano"]["nick"] == "Hiroshi"
+
+
+def test_materializado_da_o_mesmo_texto_que_a_varredura():
+    """O caminho rápido não pode dar resposta diferente do lento.
+
+    A materialização move QUANDO a conta roda (uma vez por ingestão, no CI) sem
+    mudar QUAL é a conta — é o que faz o /recordes caber nos 3s do Discord
+    (ARQUITETURA 6.2). Se os dois textos divergirem, a otimização está mentindo.
+    """
+    conn, g, jH, jQ, p1, p2, p3 = _setup()
+
+    lento = records.formatar_recordes(conn, g, "G", records.FLEX, usar_cache=False)
+    records.materializar(conn, g)
+    rapido = records.formatar_recordes(conn, g, "G", records.FLEX)
+
+    assert rapido == lento
+    assert "55.0k" in rapido           # maior dano do Hiroshi
+    assert "27 partidas" not in rapido  # o total vem do cache, não é inventado
+    assert "3 partidas" in rapido
+
+
+def test_valores_inteiros_nao_viram_float_na_volta():
+    """REAL na coluna faria '12 abates' virar '12.0 abates' ao reler."""
+    conn, g, jH, jQ, *_ = _setup()
+    records.materializar(conn, g)
+    rec, total = records.recordes_materializados(conn, g, records.FLEX)
+    assert rec["mais_abates"]["valor"] == 12
+    assert isinstance(rec["mais_abates"]["valor"], int)
+    assert total == 3
+
+
+def test_sem_materializar_cai_na_varredura_sem_quebrar():
+    """Degradar em latência é aceitável; degradar em dado errado não é."""
+    conn, g, *_ = _setup()
+    assert records.recordes_materializados(conn, g, records.FLEX) is None
+    txt = records.formatar_recordes(conn, g, "G", records.FLEX)
+    assert "HALL DA FAMA" in txt and "55.0k" in txt

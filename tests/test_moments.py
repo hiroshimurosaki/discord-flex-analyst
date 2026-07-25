@@ -81,3 +81,42 @@ def test_pickoff_isolado_vs_teamfight():
     # todas as 3 mortes estão agrupadas -> nenhuma é isolada -> 0 pick-offs
     picks = moments.detect_pickoffs(m, tl, kills, min_t=0)
     assert picks == []
+
+
+def test_derivar_e_autocontido():
+    """`derivar` condensa a timeline num dict serializável e sem participantId.
+
+    O post passa a ser montado longe da timeline (GitHub Actions, Vercel), então
+    o derivado precisa identificar jogador por puuid — participantId só faz
+    sentido dentro do match de onde veio.
+    """
+    import json
+
+    d = moments.derivar(_match(), _timeline())
+
+    # serializável: se não for, não cabe na coluna dados_json
+    assert json.loads(json.dumps(d)) == d
+
+    assert d["v"] == 1
+    assert d["swing"]["lider_team"] == 100 and d["swing"]["delta"] == 4000
+    assert d["briga_decisiva"]["n_kills"] == 3
+    assert d["briga_decisiva"]["vencedor_team"] == 100
+    assert d["dragoes"]["100"] == 1 and d["dragoes"]["200"] == 0
+    assert d["barao"]["100"] is None
+
+    # nenhum participantId cru vazou para o derivado
+    for item in d["multikills"] + d["pickoffs"]:
+        assert item["puuid"].startswith("P")
+        assert "killer" not in item and "victim" not in item
+
+
+def test_derivar_nao_estoura_em_timeline_curta():
+    """ARQUITETURA 6.5: gold_swings(...)[0] estourava IndexError com <2 frames.
+
+    Partida ultracurta com timeline presente é raro, mas o caminho é o do poster
+    automático — a exceção derrubaria o post inteiro.
+    """
+    tl_curta = {"info": {"frames": [_frame(0, 2500, 2500)]}}
+    d = moments.derivar(_match(), tl_curta)
+    assert d["swing"] is None
+    assert d["briga_decisiva"] is None

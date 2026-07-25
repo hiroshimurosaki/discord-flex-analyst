@@ -49,6 +49,62 @@ def _tl_metricas_por_puuid(match, tl) -> dict[str, dict]:
     return out
 
 
+def _momentos(conn, partida_id: int, match_id: str) -> Optional[dict]:
+    """Momentos derivados da partida, do banco.
+
+    Se a partida foi ingerida antes desta tabela existir mas a timeline ainda
+    está no cache local, deriva e grava agora — assim um banco antigo se cura
+    sozinho na primeira vez que alguém olhar a partida, em vez de exigir
+    re-ingestão. Onde não há cache (Actions, Vercel) simplesmente não há seção,
+    que é o comportamento correto: não dá pra inventar o que não foi guardado.
+    """
+    mom = db.get_momentos(conn, partida_id)
+    if mom is not None:
+        return mom
+
+    match, tl = _load_cache(match_id)
+    if not (match and tl):
+        return None
+    try:
+        mom = moments.derivar(match, tl)
+    except Exception:
+        return None
+    db.salvar_momentos(conn, partida_id, mom)
+    return mom
+
+
+def _render_momentos(mom: dict, nosso_time: int, vencedor_team: Optional[int],
+                     nick_de: dict[str, str]) -> list[str]:
+    """Momentos estruturados -> linhas do post. Só formatação, zero cálculo."""
+    L = ["\n**🔑 Momentos-chave**"]
+
+    swing = mom.get("swing")
+    if swing and vencedor_team and swing["lider_team"] != vencedor_team:
+        L.append("• 🔄 **Virada**: o maior swing de ouro foi de quem perdeu — jogo de comeback.")
+
+    briga = mom.get("briga_decisiva")
+    if briga:
+        quem = "nós" if briga["vencedor_team"] == nosso_time else "o inimigo"
+        L.append(f"• ⚔️ Briga decisiva {_mmss(briga['ini'])}–{_mmss(briga['fim'])}: "
+                 f"{briga['n_kills']} abates, **{quem}** levou a melhor.")
+
+    # Chaves de time viram string no JSON — normaliza na leitura.
+    drags = (mom.get("dragoes") or {}).get(str(nosso_time), 0)
+    barao_t = (mom.get("barao") or {}).get(str(nosso_time))
+    L.append(f"• 🐉 Objetivos nossos: {drags} dragão(ões)"
+             + (f", Barão {_mmss(barao_t)}" if barao_t else ""))
+
+    rotulo = {2: "Double", 3: "Triple", 4: "Quadra", 5: "PENTA"}
+    for mk in [m for m in mom.get("multikills") or [] if m["puuid"] in nick_de][:3]:
+        L.append(f"• 💥 {nick_de[mk['puuid']]} ({mk['campeao']}) — "
+                 f"{rotulo.get(mk['tamanho'], mk['tamanho'])} Kill {_mmss(mk['t'])}")
+
+    for pk in [p for p in mom.get("pickoffs") or [] if p["puuid"] in nick_de]:
+        L.append(f"• 💀 {nick_de[pk['puuid']]} pego sozinho no {pk['regiao']} ({_mmss(pk['t'])})")
+
+    return L
+
+
 def montar_post(conn, partida_id: int, narrador=None) -> str:
     """Post do time. Se `narrador` (callable: fatos->texto) for dado, preenche
     a 🎙️; senão, placeholder. Para o fluxo com cache, use fatos_partida()."""
@@ -105,9 +161,10 @@ def fatos_partida(conn, partida_id: int) -> str:
                  f"{_ROLE_PT.get(r['role'], '?'):<5}{kda:<10}{(r['dano'] or 0)/1000:>6.1f}k")
     L.append("```")
 
-    # Cache de partida/timeline (também alimenta o fallback de ouro@10 abaixo).
-    match, tl = _load_cache(p["match_id"])
-    tlm = _tl_metricas_por_puuid(match, tl)
+    # Fallback de ouro@10 para partidas ingeridas SEM timeline cuja timeline foi
+    # baixada depois. Só funciona onde há cache local; no Actions/Vercel devolve
+    # vazio e o duelo mostra "s/ dado", que é honesto.
+    tlm = _tl_metricas_por_puuid(*_load_cache(p["match_id"]))
 
     # --- Duelo de rota (vs oponente direto) ---
     L.append("**⚔️ Duelo de rota** (vs adversário direto, @10min)")
@@ -124,44 +181,11 @@ def fatos_partida(conn, partida_id: int) -> str:
         L.append(f"{sinal} {r['nick_display']} ({r['campeao']}) vs {opp['campeao']} "
                  f"— {ldtxt}, CS {farm_d:+d}")
 
-    # --- Momentos-chave (da timeline em cache) ---
-    if match and tl:
-        L.append("\n**🔑 Momentos-chave**")
-        pm = moments.pid_map(match)
-        nick_de = {r["puuid"]: r["nick_display"] for r in membros}
-
-        series = moments.team_gold_series(match, tl)
-        swing = moments.gold_swings(series, top=1)[0]
-        lider = nosso_time if (swing["delta"] > 0) == (nosso_time == 100) else outro_time
-        if lider != p["vencedor_team"]:
-            L.append("• 🔄 **Virada**: o maior swing de ouro foi de quem perdeu — jogo de comeback.")
-
-        kills = moments.parse_kills(match, tl)
-        fights = moments.teamfights(kills)
-        if fights:
-            dec = max(fights, key=lambda f: (abs(f["saldo_100"]), f["valor_ouro"]))
-            ganhou = 100 if dec["saldo_100"] > 0 else 200
-            quem = "nós" if ganhou == nosso_time else "o inimigo"
-            L.append(f"• ⚔️ Briga decisiva {_mmss(dec['ini'])}–{_mmss(dec['fim'])}: "
-                     f"{dec['n_kills']} abates, **{quem}** levou a melhor.")
-
-        objs = moments.objectives(match, tl)
-        drags = sum(1 for o in objs if o["tipo"].startswith("Dragão") and o["time"] == nosso_time)
-        baroes = [o for o in objs if o["tipo"] == "Barão" and o["time"] == nosso_time]
-        L.append(f"• 🐉 Objetivos nossos: {drags} dragão(ões)"
-                 + (f", Barão {_mmss(baroes[0]['t'])}" if baroes else ""))
-
-        mks = [mk for mk in moments.multikills(match, tl)
-               if pm.get(mk["killer"], {}).get("puuid") in nick_de]
-        mks.sort(key=lambda mk: mk["tamanho"], reverse=True)
-        for mk in mks[:3]:
-            rot = {2: "Double", 3: "Triple", 4: "Quadra", 5: "PENTA"}.get(mk["tamanho"])
-            L.append(f"• 💥 {nick_de[pm[mk['killer']]['puuid']]} ({mk['jogador']}) — {rot} Kill {_mmss(mk['t'])}")
-
-        picks = [pk for pk in moments.detect_pickoffs(match, tl, kills)
-                 if pm.get(pk["victim"], {}).get("puuid") in nick_de]
-        for pk in picks:
-            L.append(f"• 💀 {nick_de[pm[pk['victim']]['puuid']]} pego sozinho no {pk['regiao']} ({_mmss(pk['t'])})")
+    # --- Momentos-chave (do banco; ver tabela `momentos`) ---
+    mom = _momentos(conn, partida_id, p["match_id"])
+    if mom:
+        L.extend(_render_momentos(mom, nosso_time, p["vencedor_team"],
+                                  {r["puuid"]: r["nick_display"] for r in membros}))
 
     # --- Destaques + Conquistas (challenges) ---
     L.append("\n**🏅 Destaques**")

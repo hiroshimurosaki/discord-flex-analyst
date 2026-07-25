@@ -1,59 +1,79 @@
-"""Compara Flash vs Pro narrando as partidas reais (decisão do usuário).
+"""Compara modelos/efforts narrando as partidas reais (decisão do usuário).
 
-Resolve os nomes reais dos modelos na sua conta, gera a 🎙️ narrativa das
-partidas em grupo com cada modelo e imprime lado a lado pra você calibrar.
+Gera a 🎙️ narrativa das partidas em grupo com cada configuração e imprime lado
+a lado pra você calibrar antes de cravar CLAUDE_MODEL/CLAUDE_EFFORT no .env.
 
-Uso:  python -m scripts.compare_llm            (última partida)
-      python -m scripts.compare_llm todas      (as 3)
+Narração é uma tarefa barata: a suspeita padrão é que `sonnet` + `low` já basta,
+e cada degrau acima custa cota da assinatura. Este script é pra confirmar isso
+com os SEUS jogos, não pra aceitar de palavra.
+
+Uso:  python -m scripts.compare_llm                    (última partida)
+      python -m scripts.compare_llm todas              (as 3 últimas)
+      python -m scripts.compare_llm todas sonnet:low opus:medium
 """
 from __future__ import annotations
 
 import sys
+import time
 
 sys.stdout.reconfigure(encoding="utf-8")
 
 from bot_lol import config, llm, post
 from bot_lol.db import database as db
 
+# (modelo, effort) — o default cobre a pergunta que importa: subir de modelo
+# muda a narrativa o suficiente pra justificar o gasto?
+PADRAO = [("sonnet", "low"), ("sonnet", "medium"), ("opus", "low")]
+
+
+def _parse_args(argv: list[str]) -> tuple[int, list[tuple[str, str]]]:
+    todas = "todas" in argv
+    combos = []
+    for a in argv:
+        if ":" in a:
+            m, _, e = a.partition(":")
+            combos.append((m, e))
+    return (3 if todas else 1), (combos or PADRAO)
+
 
 def main() -> None:
-    if not config.GEMINI_API_KEY:
-        print("GEMINI_API_KEY ausente. Pegue a chave grátis em "
-              "https://aistudio.google.com/apikey e coloque no .env.")
+    if not llm.disponivel():
+        print(f"Binário '{config.CLAUDE_BIN}' não encontrado.\n"
+              "  npm install -g @anthropic-ai/claude-code\n"
+              "  claude   # e faça /login com sua conta Pro")
         return
 
-    from google import genai
-    client = genai.Client(api_key=config.GEMINI_API_KEY)
-    modelos = llm.resolver_modelos(client)
-    print("Modelos resolvidos na sua conta:")
-    for k, v in modelos.items():
-        print(f"  {k:<11} -> {v}")
-    flash, pro = modelos.get("flash"), modelos.get("pro")
-    if not flash:
-        print("Não encontrei um modelo Flash na conta.")
-        return
+    limit, combos = _parse_args(sys.argv[1:])
 
     conn = db.get_connection()
-    todas = len(sys.argv) > 1 and sys.argv[1] == "todas"
-    limit = 3 if todas else 1
     partidas = conn.execute(
-        "SELECT id, match_id FROM partidas WHERE em_grupo=1 ORDER BY inicio_ts DESC LIMIT ?",
-        (limit,)).fetchall()
+        "SELECT id, match_id FROM partidas WHERE em_grupo=1 "
+        "ORDER BY inicio_ts DESC LIMIT ?", (limit,)).fetchall()
+    if not partidas:
+        print("Nenhuma partida em grupo no banco. Rode o backfill primeiro.")
+        conn.close()
+        return
 
     for row in partidas:
-        # os fatos determinísticos (sem narrativa) viram o contexto
-        fatos = post.montar_post(conn, row["id"])
+        fatos = post.fatos_partida(conn, row["id"])
         print("\n" + "█" * 64)
         print(f" PARTIDA {row['match_id']}")
         print("█" * 64)
 
-        print(f"\n──────── FLASH ({flash}) ────────")
-        print(llm.analisar(fatos, flash))
-
-        if pro:
-            # Pro exige thinking; dá orçamento maior pra não truncar a saída.
-            print(f"\n──────── PRO ({pro}) ────────")
-            print(llm.analisar(fatos, pro, max_output_tokens=8192))
+        for modelo, effort in combos:
+            # `analisar` lê o effort do config, então trocamos por chamada.
+            anterior, config.CLAUDE_EFFORT = config.CLAUDE_EFFORT, effort
+            try:
+                t0 = time.monotonic()
+                texto = llm.analisar(fatos, modelo)
+                dt = time.monotonic() - t0
+                print(f"\n──────── {modelo} · effort={effort} · {dt:.1f}s ────────")
+                print(texto)
+            except Exception as e:
+                print(f"\n──────── {modelo} · effort={effort} ────────")
+                print(f"falhou: {e}")
+            finally:
+                config.CLAUDE_EFFORT = anterior
     conn.close()
 
 
