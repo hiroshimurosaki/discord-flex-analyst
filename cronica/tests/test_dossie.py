@@ -94,3 +94,23 @@ def test_dano_e_normalizado_como_share_do_time():
     curta = [cena(i, True, {"a": 20000, "b": 10000, "c": 10000}) for i in range(4)]
     m = D.medir(curta, "a")
     assert m["dano"] == 50.0
+
+
+def test_percentil_e_contra_os_dez_e_nao_contra_os_quatro():
+    """O rótulo da métrica promete 'você vs os 10'. Medir contra os quatro
+    companheiros responderia outra pergunta ('quem carregou o time?') e a
+    chamaria pelo nome errado — inflando o percentil de quem joga em time fraco."""
+    dano = {"a": 15000, "b": 30000, "c": 30000}
+    dez = tuple(sorted([15000, 30000, 30000] + [40000] * 7))   # 'a' é o pior dos 10
+    cenas = []
+    for i in range(12):
+        c = cena(i, True, dano)
+        cenas.append(c.__class__(**{**c.__dict__, "dano_dos_dez": dez}))
+    assert D.medir(cenas, "a")["carrega"] == 0.0     # último entre os dez
+
+    sem_dez = [cena(i, True, dano) for i in range(12)]
+    assert D.medir(sem_dez, "a")["carrega"] == 0.0   # fallback: último dos 3
+    # e o do meio contra os dez não é o mesmo que contra os companheiros
+    cs = [c.__class__(**{**c.__dict__, "dano_dos_dez": dez})
+          for c in (cena(i, True, dano) for i in range(12))]
+    assert D.medir(cs, "b")["carrega"] < D.medir(sem_dez, "b")["carrega"]

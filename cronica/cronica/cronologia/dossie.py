@@ -60,12 +60,15 @@ def medir(cenas: list[Cena], membro: str) -> dict[str, Optional[float]]:
             share_dano.append(100 * c.dano[membro] / tot)
         if c.kp.get(membro) is not None:
             share_kp.append(100 * c.kp[membro])
-        # percentil-na-partida: posição do membro entre os companheiros pelo
-        # dano. É a única régua interna disponível sem baixar o elo do lobby.
-        ordenados = sorted(c.dano.values())
-        if len(ordenados) > 1:
-            pos = sum(1 for v in ordenados if v < c.dano[membro])
-            pcts.append(100 * pos / (len(ordenados) - 1))
+        # Percentil-na-partida: posição do membro entre os DEZ que jogaram
+        # aquele jogo. É a régua mais honesta disponível sem baixar o elo do
+        # lobby — os dez viveram o mesmo patch, a mesma duração e o mesmo nível
+        # de oposição. Medir só contra os quatro companheiros responderia outra
+        # pergunta ("quem carregou o time?") e a chamaria pelo nome errado.
+        dez = c.dano_dos_dez or tuple(sorted(c.dano.values()))
+        if len(dez) > 1:
+            pos = sum(1 for v in dez if v < c.dano[membro])
+            pcts.append(100 * pos / (len(dez) - 1))
 
     mortes = [c.kda[membro][1] for c in minhas]
     return {

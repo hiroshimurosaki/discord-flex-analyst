@@ -296,18 +296,27 @@ def _absorver_curtas(cortes: list[int], minimo: int) -> list[int]:
     ruído em significado. O mínimo é uma decisão narrativa, não estatística.
     """
     cortes = sorted(set(cortes))
-    mudou = True
-    while mudou and len(cortes) > 2:
-        mudou = False
-        for i in range(len(cortes) - 1):
-            if cortes[i + 1] - cortes[i] < minimo:
-                # remove a fronteira que deixa o vizinho mais equilibrado
-                alvo = i if i > 0 else i + 1
-                if alvo == 0:
-                    alvo = 1
-                cortes.pop(alvo)
-                mudou = True
-                break
+    while len(cortes) > 2:
+        # o segmento mais curto que ainda está abaixo do mínimo
+        curtos = [i for i in range(len(cortes) - 1)
+                  if cortes[i + 1] - cortes[i] < minimo]
+        if not curtos:
+            break
+        i = min(curtos, key=lambda k: cortes[k + 1] - cortes[k])
+
+        # Funde com o vizinho MENOR: absorver o trecho curto na era já enorme
+        # ao lado apagaria a fase inteira, enquanto juntar os dois pequenos
+        # tende a produzir um capítulo do tamanho certo. Nas bordas só há um
+        # vizinho possível.
+        esq = cortes[i] - cortes[i - 1] if i > 0 else None
+        dir_ = cortes[i + 2] - cortes[i + 1] if i + 2 < len(cortes) else None
+        if esq is None:
+            alvo = i + 1
+        elif dir_ is None:
+            alvo = i
+        else:
+            alvo = i if esq <= dir_ else i + 1
+        cortes.pop(alvo)
     return cortes
 
 

@@ -36,6 +36,13 @@ class Cena:
     lanediff_10: dict[str, Optional[int]]
     kp: dict[str, Optional[float]]
     oponentes: dict[str, str] = field(default_factory=dict)  # role -> campeão inimigo
+    # Dano dos DEZ da partida, e o índice de cada membro dentro dessa lista.
+    # É o que permite o percentil-na-partida honesto: você contra os dez que
+    # jogaram aquele jogo — mesmo patch, mesmo elo, mesma duração. Contra os
+    # quatro companheiros só se mede quem carregou o próprio time, que é uma
+    # pergunta diferente e bem menos interessante.
+    dano_dos_dez: tuple[int, ...] = ()
+    dano_por_membro: dict[str, int] = field(default_factory=dict)
     deficit_max: Optional[int] = None
     pico_max: Optional[int] = None
     minuto_deficit: Optional[int] = None
@@ -90,6 +97,8 @@ def carregar_cenas(conn, fila: int = config.FILA_FLEX,
             lanediff_10={l["membro_id"]: l["lanediff_10"] for l in nossos},
             kp={l["membro_id"]: l["kp"] for l in nossos},
             oponentes=adversarios,
+            dano_dos_dez=tuple(sorted(l["dano"] or 0 for l in linhas)),
+            dano_por_membro={l["membro_id"]: l["dano"] or 0 for l in nossos},
             deficit_max=tl.get("deficit_max"), pico_max=tl.get("pico_max"),
             minuto_deficit=tl.get("minuto_deficit"),
         ))

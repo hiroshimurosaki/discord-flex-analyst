@@ -85,3 +85,17 @@ def test_historico_curto_nao_e_segmentado():
     cenas = [cena(i, i % 3 == 0) for i in range(10)]
     eras, fronteiras = E.detectar(cenas, min_partidas=12)
     assert len(eras) == 1 and not fronteiras
+
+
+def test_segmento_curto_funde_com_o_vizinho_menor():
+    """Absorver um trecho curto na era enorme ao lado apagaria a fase inteira;
+    juntar os dois pequenos tende a dar um capítulo do tamanho certo."""
+    # segmentos: 100, 5, 15  -> o de 5 deve ir para o de 15, não para o de 100
+    assert E._absorver_curtas([0, 100, 105, 120], 12) == [0, 100, 120]
+    # segmentos: 15, 5, 100  -> espelho do caso acima
+    assert E._absorver_curtas([0, 15, 20, 120], 12) == [0, 20, 120]
+
+
+def test_absorver_nunca_apaga_as_bordas():
+    assert E._absorver_curtas([0, 3, 40], 12)[0] == 0
+    assert E._absorver_curtas([0, 37, 40], 12)[-1] == 40
