@@ -3,6 +3,8 @@
     python -m scripts.renderizar canone/time.yaml
     npx @marp-team/marp-cli@latest saida/slides.md -o saida/slides.html
     npx @marp-team/marp-cli@latest saida/slides.md --pdf
+
+O `.marprc.yml` gravado junto habilita o HTML embutido de que o deck depende.
 """
 from __future__ import annotations
 
@@ -45,6 +47,9 @@ def main() -> int:
     print(f"✓ livro   {pl}")
     print(f"✓ slides  {ps}")
     print(f"\n  npx @marp-team/marp-cli@latest {ps} -o saida/slides.html")
+    print(f"  npx @marp-team/marp-cli@latest {ps} --pdf")
+    print("\n  (o .marprc.yml gerado já habilita o HTML embutido que o deck usa;")
+    print("   rodando de outro diretório, acrescente --html)")
     return 0
 
 

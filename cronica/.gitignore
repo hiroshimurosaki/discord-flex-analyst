@@ -9,6 +9,9 @@ cache/
 saida/
 .env
 
+# Gerado por render/slides.py junto do deck.
+.marprc.yml
+
 __pycache__/
 *.py[cod]
 .pytest_cache/

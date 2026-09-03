@@ -7,6 +7,12 @@ arquivo de texto versionável. Nada de build de JS entre você e o slide.
     npx @marp-team/marp-cli@latest saida/slides.md -o saida/slides.html
     npx @marp-team/marp-cli@latest saida/slides.md --pdf
 
+**O deck precisa de HTML habilitado.** Capa, linha de KPIs e os gráficos SVG são
+HTML embutido, e o Marp os escapa por padrão — sem isso o slide do panorama sai
+com o código-fonte do SVG impresso como texto. Por isso `montar()` grava um
+`.marprc.yml` ao lado do deck e outro na raiz do projeto: assim o comando acima
+funciona sem ninguém precisar lembrar de `--html`.
+
 A regra de corte: um slide sustenta UMA ideia. A prosa do capítulo é o roteiro
 de fala; o slide carrega a frase de abertura, os números e o gráfico. Despejar o
 capítulo inteiro num slide seria transformar apresentação em documento.
@@ -37,8 +43,11 @@ style: |
   .sub { color: #9aa2ae; font-size: .95em; }
   .grande { font-size: 3.4em; font-weight: 700; line-height: 1; color: #fff; }
   .kpis { display: flex; gap: 48px; margin: 24px 0; }
-  .kpi small { display: block; color: #9aa2ae; font-size: .5em;
-               font-weight: 500; margin-top: 6px; letter-spacing: .02em; }
+  /* O rótulo é legenda, não conteúdo: em .5em ele competia com o número e o
+     olho batia no texto antes do dado. */
+  .kpi { min-width: 3.4em; }
+  .kpi small { display: block; color: #9aa2ae; font-size: .28em;
+               font-weight: 600; margin-top: 10px; letter-spacing: .08em; }
   .cita { font-size: 1.35em; line-height: 1.45; color: #fff;
           border-left: 3px solid #5b8ec4; padding-left: 20px; }
   table { font-size: .78em; border-collapse: collapse; }
@@ -87,15 +96,23 @@ def _slide_abertura_cap(fm: dict) -> str:
             + (f" · {sinais}" if sinais else "") + "</p>\n")
 
 
-def _slide_numeros(fm: dict) -> str:
+def _slide_numeros(fm: dict, canone: Canone) -> str:
+    """Três KPIs. O terceiro é o DELTA, não o número de vitórias: 42 partidas,
+    40.5% e 17 vencidas são a mesma informação dita três vezes, e o slide de
+    uma história de evolução tem que mostrar movimento, não estado."""
     delta = fm.get("delta_wr")
-    dtxt = (f"{delta:+g}pp vs a era anterior" if delta is not None else "primeira era")
+    dtxt = f"{delta:+g}<small>PP VS A ERA ANTERIOR</small>" if delta is not None \
+        else "—<small>PRIMEIRA ERA</small>"
+    nucleo = ", ".join(canone.membros[m].nome if m in canone.membros else m
+                       for m in fm.get("nucleo", []))
+    v, j = fm.get("vitorias"), fm.get("jogos")
     return ("## Os números\n\n<div class='kpis'>"
-            f"<div class='kpi grande'>{fm.get('jogos')}<small>PARTIDAS</small></div>"
-            f"<div class='kpi grande'>{fm.get('wr')}%<small>VITÓRIAS</small></div>"
-            f"<div class='kpi grande'>{fm.get('vitorias')}<small>VENCIDAS</small></div>"
-            f"</div>\n\n<p class='sub'>{dtxt} · núcleo: "
-            + ", ".join(fm.get("nucleo", [])) + "</p>\n")
+            f"<div class='kpi grande'>{j}<small>PARTIDAS</small></div>"
+            f"<div class='kpi grande'>{fm.get('wr')}%<small>DE VITÓRIA</small></div>"
+            f"<div class='kpi grande'>{dtxt}</div>"
+            f"</div>\n\n<p class='sub'>{v}V / "
+            f"{(j - v) if (j is not None and v is not None) else '?'}D"
+            + (f" · núcleo: {nucleo}" if nucleo else "") + "</p>\n")
 
 
 def _slide_abertura_frase(fm: dict) -> str:
@@ -131,6 +148,22 @@ def _slides_prosa(corpo: str, por_slide: int = 3) -> list[str]:
     return saida
 
 
+MARPRC = """# Gerado por cronica/render/slides.py — não edite à mão.
+# O deck usa HTML embutido (capa, KPIs, SVG). Sem `html: true` o Marp escapa
+# tudo isso e o slide do panorama sai com o código do SVG impresso como texto.
+html: true
+allowLocalFiles: true
+"""
+
+
+def _gravar_config(*dirs: Path) -> None:
+    for d in dirs:
+        try:
+            (d / ".marprc.yml").write_text(MARPRC, encoding="utf-8")
+        except OSError:
+            pass   # config é conveniência; --html na mão continua funcionando
+
+
 def montar(dir_capitulos: Path, canone: Canone, eras: list,
            saida: Optional[Path] = None, com_prosa: bool = True) -> Path:
     arquivos = sorted(dir_capitulos.glob("cap*.md"))
@@ -141,7 +174,7 @@ def montar(dir_capitulos: Path, canone: Canone, eras: list,
     for arq in arquivos:
         fm, corpo = ler_capitulo(arq)
         for s in (_slide_abertura_cap(fm), _slide_abertura_frase(fm),
-                  _slide_numeros(fm), _slide_cenas(fm)):
+                  _slide_numeros(fm, canone), _slide_cenas(fm)):
             if s:
                 slides.append(s)
         if com_prosa:
@@ -157,4 +190,5 @@ def montar(dir_capitulos: Path, canone: Canone, eras: list,
     saida = saida or dir_capitulos.parent / "slides.md"
     saida.write_text(TEMA + "\n" + "\n\n---\n\n".join(slides) + "\n",
                      encoding="utf-8")
+    _gravar_config(saida.parent, saida.parent.parent)
     return saida

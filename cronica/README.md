@@ -145,3 +145,14 @@ python -m pytest tests/ -q
 Nunca no código, nunca no Git. `RIOT_API_KEY` no ambiente ou num `.env` local.
 A chave de **dev expira em 24h** — a primeira coleta de 8 jogadores leva horas
 por causa do rate limit, então vale pedir chave de produção antes de começar.
+
+## Como levar isto para um repo próprio
+
+`cronica/` não importa nada de `bot_lol/` — é autocontido de propósito. Para
+separar:
+
+```bash
+git subtree split -P cronica -b cronica-solo   # preserva o histórico
+# ou, se o histórico não importa:
+cp -r cronica /caminho/do/repo-novo && cd $_ && git init
+```
