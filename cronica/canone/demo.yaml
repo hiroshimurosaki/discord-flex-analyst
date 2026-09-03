@@ -1,0 +1,216 @@
+# Cânone do histórico sintético (`python -m scripts.demo`).
+# Personagens fictícios. Serve para você VER o formato funcionando de ponta a
+# ponta antes de escrever o de verdade em `canone/time.yaml`.
+
+time:
+  nome: "A Call das Onze"
+  desde: "2024-09"
+
+voz: |
+  Zoeira de grupo antigo, dessas que só funcionam porque tem afeto embaixo.
+  Narrador de dentro: alguém que estava na call e lembra de tudo. Pode xingar
+  de leve, pode citar apelido, e tem que ser justo — quando alguém foi mal,
+  fala; quando alguém carregou, fala também. Nada de tom de análise de esports.
+
+elenco:
+  titulares:
+    motor:
+      nome: "Motor"
+      riot_id: "Motor#DEMO"
+      role: JUNGLE
+    atirador:
+      nome: "Atirador"
+      riot_id: "Atirador#DEMO"
+      role: BOTTOM
+    ancora:
+      nome: "Âncora"
+      riot_id: "Âncora#DEMO"
+      role: UTILITY
+    teimoso:
+      nome: "Teimoso"
+      riot_id: "Teimoso#DEMO"
+      role: TOP
+    calado:
+      nome: "Calado"
+      riot_id: "Calado#DEMO"
+      role: MIDDLE
+  substitutos:
+    visita:
+      nome: "Visita"
+      riot_id: "Visita#DEMO"
+      role: BOTTOM
+      entra_no_lugar_de: atirador
+    reserva:
+      nome: "Reserva"
+      riot_id: "Reserva#DEMO"
+      role: JUNGLE
+      entra_no_lugar_de: motor
+    primo:
+      nome: "Primo"
+      riot_id: "Primo#DEMO"
+      role: TOP
+      entra_no_lugar_de: teimoso
+
+personagens:
+  motor:
+    arquetipo: "o que carrega e não deixa ninguém esquecer"
+    personalidade: >
+      Decide a partida e narra a própria decisão em tempo real. Nunca está
+      errado na hora; às vezes admite no dia seguinte. É quem chama objetivo e
+      quem reclama quando ninguém vem.
+    se_acha: "sem mim vocês não passam de prata, e vocês sabem disso"
+    medo: "que o time ganhe bem sem ele — então força jogada quando está sobrando"
+    bordoes: ["vem no drake", "eu falei"]
+    relacoes:
+      ancora: "o único que consegue dizer 'não' pra ele sem virar briga"
+      teimoso: "implica desde o primeiro dia, e é implicância de irmão mais velho"
+    afirma:
+      - metrica: dano
+        direcao: alto
+        texto: "eu sou o dano desse time"
+      - metrica: carrega
+        direcao: alto
+        texto: "eu carrego"
+
+  atirador:
+    arquetipo: "o mecânico de sangue frio"
+    personalidade: >
+      Fala pouco e erra pouco. Farma como se o resto do mapa não existisse, o
+      que é ótimo até a hora em que o resto do mapa existe muito.
+    se_acha: "eu não morro à toa, se eu morri é porque me largaram"
+    medo: "ser o motivo declarado de uma derrota"
+    bordoes: ["cadê a visão"]
+    relacoes:
+      ancora: "bot lane desde sempre; se entendem sem falar"
+    afirma:
+      - metrica: morre_pouco
+        direcao: alto
+        texto: "eu não morro à toa"
+      - metrica: farm
+        direcao: alto
+
+  ancora:
+    arquetipo: "quem segura o grupo, dentro e fora do jogo"
+    personalidade: >
+      Coloca ward, marca horário, apazigua briga. Joga pra que os outros
+      apareçam e não cobra crédito por isso — o que é bonito e às vezes injusto.
+    se_acha: "eu não preciso aparecer, eu preciso que o time funcione"
+    medo: "que o grupo se desfaça por besteira"
+    bordoes: ["calma", "eu ponho ward"]
+    relacoes:
+      motor: "traduz o Motor para o resto do time"
+      teimoso: "defende o Teimoso quando o Motor pega no pé"
+    afirma:
+      - metrica: visao
+        direcao: alto
+        texto: "eu sou os olhos desse time"
+      - metrica: dano
+        direcao: baixo
+        texto: "eu não preciso aparecer"
+
+  teimoso:
+    arquetipo: "o que nunca recua"
+    personalidade: >
+      Joga como se recuar fosse admitir derrota. Aprende rápido no mecânico e
+      devagar no resto. Quando fala na call, é pra reclamar do jungler.
+    se_acha: "eu seguro qualquer 1v1, meu problema é que ninguém me ajuda"
+    medo: "parecer o pior da partida — então dobra a aposta justo quando devia parar"
+    bordoes: ["vem 1v1 então", "eu tava ganhando a rota"]
+    relacoes:
+      motor: "acha que o Motor nunca aparece no top; às vezes tem razão"
+    afirma:
+      - metrica: rota
+        direcao: alto
+        texto: "eu ganho a minha rota"
+      - metrica: morre_pouco
+        direcao: alto
+        texto: "eu não morro à toa"
+
+  calado:
+    arquetipo: "o que ninguém percebe até faltar"
+    personalidade: >
+      Não pede a call, não reclama, não comemora muito. Some do áudio por vinte
+      minutos e reaparece com o mid empurrado.
+    se_acha: "eu faço o meu, se o time fizer o dele a gente ganha"
+    medo: "conflito — prefere aceitar a rota ruim a discutir"
+    bordoes: ["tanto faz"]
+    relacoes:
+      atirador: "os dois silenciosos; se respeitam sem nunca ter dito isso"
+    afirma:
+      - metrica: kp
+        direcao: alto
+        texto: "eu tô sempre nas jogadas"
+
+  visita:
+    arquetipo: "o que joga melhor sozinho"
+    personalidade: >
+      Chega quando falta alguém, joga bem, e por algum motivo o time rende
+      menos. Ele nota, e nunca comenta.
+    se_acha: "eu rendo em qualquer time"
+    medo: "não ser chamado da próxima vez"
+    bordoes: []
+    relacoes: {}
+    afirma:
+      - metrica: carrega
+        direcao: alto
+
+  reserva:
+    arquetipo: "o substituto confiável e sem brilho"
+    personalidade: >
+      Faz o arroz com feijão da selva e não erra. Ninguém sai da partida falando
+      dele, o que é exatamente o trabalho.
+    se_acha: "eu não perco jogo sozinho"
+    medo: "ser comparado com o Motor"
+    bordoes: []
+    relacoes:
+      motor: "sabe que entrou no lugar dele e nunca toca no assunto"
+    afirma:
+      - metrica: morre_pouco
+        direcao: alto
+
+  primo:
+    arquetipo: "o que aparece uma vez a cada dois meses"
+    personalidade: "Some, volta, joga bem, some de novo."
+    se_acha: "eu ainda jogo melhor que vocês"
+    medo: ""
+    bordoes: []
+    relacoes: {}
+    afirma: []
+
+eventos:
+  - data: 2024-10-30
+    tipo: atrito
+    titulo: "A briga do drake"
+    texto: >
+      Depois de mais uma derrota, o Motor disse na call que jogava sozinho. O
+      Teimoso saiu e ficou dois dias sem responder. A data é aproximada.
+    envolvidos: [motor, teimoso]
+
+  - data: 2024-11-15
+    tipo: hiato
+    titulo: "O sumiço"
+    texto: "Ninguém combinou nada, simplesmente parou. Quase dois meses."
+    envolvidos: []
+
+  - data: 2025-03-02
+    tipo: mudanca_vida
+    titulo: "O Motor mudou de cidade"
+    texto: >
+      Trabalho novo, fuso diferente, sumiu do horário da call. Foi quando o
+      Reserva virou titular sem ninguém anunciar.
+    envolvidos: [motor, reserva]
+
+  - data: 2025-06-20
+    tipo: conquista
+    titulo: "Ouro, finalmente"
+    texto: "O Teimoso subiu pra ouro e mandou print às 3 da manhã."
+    envolvidos: [teimoso]
+
+  - data: 2025-09-10
+    tipo: piada_interna
+    titulo: "'vem 1v1 então'"
+    texto: >
+      Nasceu de uma partida em que o Teimoso morreu quatro vezes para o mesmo
+      Renekton repetindo isso na call. Virou a resposta padrão do grupo pra
+      qualquer discussão.
+    envolvidos: [teimoso]

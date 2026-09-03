@@ -1,0 +1,15 @@
+# Estado local e saída GERADA: nada disso é versionado.
+#
+# `saida/` é derivado — regenerável a partir do banco + cânone com um comando.
+# O que vale a pena versionar do produto são os capítulos DO SEU time, e a
+# decisão de fazer isso é sua: se quiser guardar a história no Git, remova a
+# linha `saida/` daqui. Exemplos do formato ficam em `exemplos/`.
+dados/
+cache/
+saida/
+.env
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/

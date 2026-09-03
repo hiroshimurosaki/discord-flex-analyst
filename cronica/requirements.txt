@@ -1,0 +1,14 @@
+# Versões travadas para reprodutibilidade entre Linux e Windows.
+requests==2.32.3
+PyYAML==6.0.2
+python-dotenv==1.0.1
+
+# A LLM não é dependência Python: é o CLI do Claude Code chamado por subprocess
+# (ver cronica/narracao/llm.py). Instale com:
+#   npm install -g @anthropic-ai/claude-code
+#
+# O render de slides usa Marp, também via npx (nada a instalar):
+#   npx @marp-team/marp-cli@latest saida/slides.md -o saida/slides.html
+
+# Dev:
+pytest==8.3.3

@@ -1,0 +1,209 @@
+# ============================================================================
+# CÂNONE — a camada que a Riot API nunca vai ter.
+#
+# Copie para `canone/time.yaml` e preencha. Este arquivo é a alma do projeto:
+# os números saem da API, mas quem são vocês sai daqui.
+#
+# Valide a qualquer momento com:
+#     python -m scripts.validar_canone canone/time.yaml
+#
+# Campos estruturais (riot_id, role) já vêm preenchidos com os 8 jogadores e as
+# grafias exatas. Os campos de personagem estão como TODO de propósito — eu não
+# vou inventar personalidade de gente real. As perguntas em cada TODO são para
+# você responder no lugar delas.
+# ============================================================================
+
+time:
+  nome: "TODO: como vocês se chamam? (mesmo que seja só 'a call')"
+  desde: "TODO: YYYY-MM da primeira flex juntos, se você lembra"
+
+# Instrução de tom que vai no prompt de TODO capítulo. É o que separa
+# 'relatório de esports' de 'história dos seus amigos'. Escreva como você
+# contaria pra alguém de fora, na mesa do bar.
+voz: |
+  TODO. Alguns eixos para você decidir:
+    - zoeira pesada ou respeito sério? (ou zoeira que vira respeito no fim?)
+    - narrador de fora, ou alguém de dentro do grupo contando?
+    - pode xingar? pode citar apelido? tem assunto proibido?
+
+# ---------------------------------------------------------------------------
+# ELENCO
+#
+# ATENÇÃO — este corte titular/substituto é um PALPITE MEU, feito por número de
+# partidas (do briefing do repo antigo). Ele tem um conflito óbvio: Qiak e
+# Nyachi são os dois BOTTOM, e Hiroshi e Nashorn são os dois JUNGLE. Ou seja,
+# esses cinco não formam um time válido — corrija.
+#
+# Se você não lembra quem é o quinteto canônico, colete os dados primeiro e
+# rode `python -m scripts.quinteto` : ele conta quais 5 jogaram juntos mais
+# vezes em flex e responde isso com dado em vez de memória.
+# ---------------------------------------------------------------------------
+elenco:
+  titulares:
+    hiroshi:
+      nome: "Hiroshi"
+      riot_id: "Hiroshi#10102"
+      role: JUNGLE          # briefing diz Jungle/Mid (flex)
+    qiak:
+      nome: "Qiak"
+      riot_id: "Qiak#000"
+      role: BOTTOM
+    thokyru:
+      nome: "Thokyru"
+      riot_id: "Thokyru#BR1"
+      role: UTILITY
+    lukyy:
+      nome: "Lukyy"
+      riot_id: "Lukyy#Luky"    # dois 'y' no nome, um no tag
+      role: TOP
+    yuya:
+      nome: "Yuya Freecss"
+      riot_id: "Yuya Freecss#BR1"   # dois 's' no fim
+      role: MIDDLE          # briefing diz flex Top/Mid
+
+  substitutos:
+    nyachi:
+      nome: "Nyachi"
+      riot_id: "Nyachi#mee"
+      role: BOTTOM
+      entra_no_lugar_de: qiak
+    nashorn:
+      nome: "Nashorn"
+      riot_id: "Nashorn#Shiro"
+      role: JUNGLE
+      entra_no_lugar_de: hiroshi
+    topmogger:
+      nome: "Top Mogger"
+      riot_id: "Top Mogger#Dasky"
+      role: TOP
+      entra_no_lugar_de: lukyy
+
+# ---------------------------------------------------------------------------
+# PERSONAGENS
+#
+# Cinco campos, e cada um faz um trabalho diferente no texto:
+#
+#   arquetipo      o rótulo. Uma frase. É como o leitor vai lembrar dele.
+#   personalidade  como a pessoa É. A LLM usa isso pra dar VOZ, não pra elogiar.
+#   se_acha        *** O CAMPO MAIS IMPORTANTE. ***
+#                  A auto-imagem. O código cruza com o desempenho medido e
+#                  classifica: confirmado / contradito / virou_verdade.
+#                  'Contradito' é ouro: é conflito. 'Virou verdade' é o clímax
+#                  de um arco — é literalmente evolução, medida.
+#                  Escreva na primeira pessoa dele, com as palavras dele.
+#   medo           o que ele evita. Explica as decisões ruins sem julgar.
+#   bordoes        o que ele fala. Uma frase real vale três de descrição.
+#   relacoes       a química. Duo, rivalidade, quem acalma quem.
+#
+# O exemplo abaixo está preenchido com um personagem FICTÍCIO só pra mostrar a
+# profundidade que funciona. Apague ele.
+# ---------------------------------------------------------------------------
+personagens:
+
+  # ---- EXEMPLO (fictício — apague) -------------------------------------
+  # NÃO deixe este bloco: o id 'exemplo' não está no elenco e o validador vai
+  # recusar o arquivo. Está aqui comentado só como referência de profundidade.
+  #
+  # exemplo:
+  #   arquetipo: "o que nunca recua"
+  #   personalidade: >
+  #     Joga como se recuar fosse admitir derrota. Aprende rápido no mecânico e
+  #     devagar no resto. Não fala muito na call, mas quando fala é pra
+  #     reclamar do jungler — sempre.
+  #   se_acha: "eu seguro qualquer 1v1 do meu elo, meu problema é o time"
+  #   medo: "parecer o pior jogador da partida — então dobra a aposta quando
+  #     está atrás, que é exatamente quando devia parar"
+  #   bordoes:
+  #     - "vem 1v1 então"
+  #     - "eu tava ganhando a rota"
+  #   relacoes:
+  #     outro_id: "irmão mais novo da call; obedece o outro_id e ignora todos"
+  # ----------------------------------------------------------------------
+
+  hiroshi:
+    arquetipo: "TODO: em uma frase, quem ele é na call"
+    personalidade: "TODO"
+    se_acha: "TODO: o que ELE diria que é o forte dele, com as palavras dele"
+    medo: "TODO: o que ele evita — e que decisão ruim isso causa"
+    bordoes: []
+    relacoes: {}
+
+  qiak:
+    arquetipo: "TODO"
+    personalidade: "TODO"
+    se_acha: "TODO"
+    medo: "TODO"
+    bordoes: []
+    relacoes: {}
+
+  thokyru:
+    arquetipo: "TODO"
+    personalidade: "TODO"
+    se_acha: "TODO"
+    medo: "TODO"
+    bordoes: []
+    relacoes: {}
+
+  lukyy:
+    arquetipo: "TODO"
+    personalidade: "TODO"
+    se_acha: "TODO"
+    medo: "TODO"
+    bordoes: []
+    relacoes: {}
+
+  yuya:
+    arquetipo: "TODO"
+    personalidade: "TODO"
+    se_acha: "TODO"
+    medo: "TODO"
+    bordoes: []
+    relacoes: {}
+
+  nyachi:
+    arquetipo: "TODO"
+    personalidade: "TODO"
+    se_acha: "TODO"
+    medo: "TODO"
+    bordoes: []
+    relacoes: {}
+
+  nashorn:
+    arquetipo: "TODO"
+    personalidade: "TODO"
+    se_acha: "TODO"
+    medo: "TODO"
+    bordoes: []
+    relacoes: {}
+
+  topmogger:
+    arquetipo: "TODO"
+    personalidade: "TODO"
+    se_acha: "TODO"
+    medo: "TODO"
+    bordoes: []
+    relacoes: {}
+
+# ---------------------------------------------------------------------------
+# EVENTOS — os marcos fora do jogo.
+#
+# Isto é o que transforma um buraco no gráfico em capítulo. O código ancora cada
+# evento na era em que a data caiu e entrega junto dos números daquele período.
+#
+# tipos: hiato | mudanca_vida | conquista | atrito | piada_interna | marco
+#
+# Não precisa ser preciso ao dia. Se você só sabe "foi por volta de março",
+# põe 2025-03-15 e escreve a imprecisão no texto — o briefing repassa isso e a
+# narração é instruída a não cravar o que não sabe.
+# ---------------------------------------------------------------------------
+eventos:
+  - data: 2025-01-01
+    tipo: marco
+    titulo: "TODO: apague este e escreva os de verdade"
+    texto: >
+      Coisas que valem virar evento: quando alguém entrou ou saiu do grupo, a
+      vez que vocês pararam de jogar e por quê, o dia em que alguém trocou de
+      PC ou de internet, a briga que mudou o clima, a subida de elo que vocês
+      comemoraram, a piada interna que nasceu de uma partida específica, o
+      campeonato interno, o dia em que alguém mudou de role de vez.
+    envolvidos: []
