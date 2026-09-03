@@ -57,6 +57,9 @@ REGRAS INVIOLÁVEIS
    Esse é o material mais valioso do capítulo: use.
 
 COMO ESCREVER
+- O `titulo` é SEU: não copie o cabeçalho do briefing, não escreva "Capítulo N",
+  não use o rótulo interno da forma. Um nome curto, concreto, que só sirva para
+  este capítulo.
 - 400 a 700 palavras de prosa corrida, com subtítulos quando ajudar.
 - Cena antes de estatística: abra por uma partida, não por um winrate.
 - Cada pessoa citada tem que soar como ela, não como "o jungler".

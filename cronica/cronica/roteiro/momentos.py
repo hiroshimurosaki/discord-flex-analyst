@@ -20,8 +20,9 @@ from typing import Callable, Optional
 from ..cronologia.series import Cena
 
 PAPEIS = [
-    "primeira_vez", "fundo_do_poco", "catarse", "virada", "espelho",
-    "entra_o_substituto", "recorde", "pico_de_personagem", "queda_livre",
+    "marcado_por_voce", "primeira_vez", "fundo_do_poco", "catarse", "virada",
+    "espelho", "entra_o_substituto", "recorde", "pico_de_personagem",
+    "queda_livre",
 ]
 
 
@@ -56,6 +57,32 @@ def _ficha(c: Cena) -> dict:
 
 
 # ------------------------------------------------------------- seletores
+
+def marcado_por_voce(cenas: list[Cena], contexto: dict) -> list[Momento]:
+    """As partidas que você marcou com `destacar: true` no cânone.
+
+    Prioridade máxima e sem critério estatístico nenhum: o código escala cenas
+    por função narrativa, mas quem é dono da história é você. Se a partida em
+    que alguém jogou com febre não bate nenhum recorde e não vira nenhum
+    espelho, ela entra assim mesmo.
+    """
+    marcadas: dict[str, object] = contexto.get("anotacoes") or {}
+    destaques = {mid for mid, a in marcadas.items() if getattr(a, "destacar", False)}
+    if not destaques:
+        return []
+    out: list[Momento] = []
+    usadas: set[str] = contexto.setdefault("destaques_usados", set())
+    for c in cenas:
+        if c.match_id not in destaques or c.match_id in usadas:
+            continue
+        usadas.add(c.match_id)
+        a = marcadas[c.match_id]
+        out.append(Momento("marcado_por_voce",
+                           getattr(a, "titulo", "") or "Esta você pediu para contar",
+                           [c.partida_id], c.data.isoformat(),
+                           "marcada no cânone com `destacar: true`", _ficha(c)))
+    return out
+
 
 def primeira_vez(cenas: list[Cena], contexto: dict) -> list[Momento]:
     """Estreias. Só existem uma vez na história inteira, então `contexto`
@@ -339,6 +366,7 @@ def espelho(cenas: list[Cena], contexto: dict) -> list[Momento]:
 
 
 SELETORES: dict[str, Callable[[list[Cena], dict], list[Momento]]] = {
+    "marcado_por_voce": marcado_por_voce,
     "primeira_vez": primeira_vez,
     "espelho": espelho,
     "virada": virada,
@@ -353,8 +381,9 @@ SELETORES: dict[str, Callable[[list[Cena], dict], list[Momento]]] = {
 # Ordem de preferência quando há mais candidatos que vagas. É uma decisão
 # narrativa: estreia e espelho contam evolução; pico de personagem é o mais
 # dispensável porque se repete em todo capítulo.
-PRIORIDADE = ["primeira_vez", "espelho", "virada", "catarse", "fundo_do_poco",
-              "entra_o_substituto", "recorde", "queda_livre", "pico_de_personagem"]
+PRIORIDADE = ["marcado_por_voce", "primeira_vez", "espelho", "virada",
+              "catarse", "fundo_do_poco", "entra_o_substituto", "recorde",
+              "queda_livre", "pico_de_personagem"]
 
 
 def escalar(cenas: list[Cena], contexto: dict, maximo: int = 6) -> list[Momento]:
@@ -372,7 +401,11 @@ def escalar(cenas: list[Cena], contexto: dict, maximo: int = 6) -> list[Momento]
     for papel in PRIORIDADE:
         if papel not in achados or len(escalados) >= maximo:
             continue
-        if papel == "pico_de_personagem":
+        if papel == "marcado_por_voce":
+            # Pode render várias, e todas entram: são pedidos explícitos seus.
+            # Por isso são as primeiras a ocupar vaga.
+            escalados.extend(achados[papel][:maximo - len(escalados)])
+        elif papel == "pico_de_personagem":
             # só preenche as vagas que sobraram, e alterna quem ganha destaque
             # entre capítulos para não ser sempre o mesmo carry
             vagas = maximo - len(escalados)

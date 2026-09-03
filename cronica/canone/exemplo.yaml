@@ -207,3 +207,32 @@ eventos:
       comemoraram, a piada interna que nasceu de uma partida específica, o
       campeonato interno, o dia em que alguém mudou de role de vez.
     envolvidos: []
+
+# ---------------------------------------------------------------------------
+# ANOTAÇÕES POR PARTIDA — o que você lembra de UM jogo específico.
+#
+# O resto do cânone é sobre pessoas e sobre períodos. Memória de grupo não é
+# assim: ela é feita de partidas. "O dia em que o fulano jogou com febre" não é
+# evento de calendário nem traço de personalidade — é uma linha do banco com
+# uma história colada. Aqui você cola.
+#
+# O match_id você pega em `saida/roteiro.json`, nos briefings, ou direto no
+# banco:
+#     sqlite3 dados/fatos.db "select match_id, date(inicio_ts/1000,'unixepoch') \
+#       from partidas where em_grupo=1 order by inicio_ts desc limit 20"
+#
+# Duas formas:
+#     BR1_1234567890: "texto curto da nota"
+#   ou
+#     BR1_1234567890:
+#       titulo: "A partida da febre"      # vira o título da cena
+#       nota: "o que aconteceu"
+#       destacar: true                    # ver abaixo
+#
+# `destacar: true` FORÇA a partida a virar cena do capítulo, mesmo que nenhum
+# seletor a tenha escolhido. É a válvula de escape do sistema: o código escala
+# cenas por função narrativa, mas a história é sua. Uma nota SEM `destacar`
+# ainda vale — ela aparece sempre que aquela partida for escalada por outro
+# motivo.
+# ---------------------------------------------------------------------------
+partidas: {}

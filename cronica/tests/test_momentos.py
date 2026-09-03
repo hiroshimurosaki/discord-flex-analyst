@@ -101,3 +101,39 @@ def test_escalar_respeita_o_maximo_e_um_papel_por_capitulo():
     assert len(ms) <= 4
     nao_pico = [m.papel for m in ms if m.papel != "pico_de_personagem"]
     assert len(nao_pico) == len(set(nao_pico))
+
+
+class _Anot:
+    def __init__(self, destacar=True, titulo=""):
+        self.destacar, self.titulo = destacar, titulo
+
+
+def test_partida_marcada_entra_mesmo_sem_criterio_nenhum():
+    """A válvula de escape: o código escala por função narrativa, mas o dono da
+    história é o usuário."""
+    cenas = [cena(i, True) for i in range(5)]
+    ctx = {"anotacoes": {"M3": _Anot(titulo="A partida da febre")}}
+    ms = M.marcado_por_voce(cenas, ctx)
+    assert len(ms) == 1
+    assert ms[0].partida_ids == [3] and ms[0].titulo == "A partida da febre"
+
+
+def test_anotacao_sem_destacar_nao_escala_a_cena():
+    cenas = [cena(i, True) for i in range(5)]
+    ms = M.marcado_por_voce(cenas, {"anotacoes": {"M3": _Anot(destacar=False)}})
+    assert ms == []
+
+
+def test_marcada_nao_e_escalada_duas_vezes_em_capitulos_diferentes():
+    ctx = {"anotacoes": {"M3": _Anot()}}
+    cenas = [cena(i, True) for i in range(5)]
+    assert M.marcado_por_voce(cenas, ctx)
+    assert M.marcado_por_voce(cenas, ctx) == []   # já usada
+
+
+def test_marcada_tem_prioridade_maxima_na_escalacao():
+    cenas = ([cena(i, False) for i in range(6)]
+             + [cena(i, True, deficit=9000) for i in range(6, 20)])
+    ms = M.escalar(cenas, {"titulares": {"a"}, "substitutos": set(),
+                           "anotacoes": {"M9": _Anot()}}, maximo=3)
+    assert ms[0].papel == "marcado_por_voce"

@@ -103,6 +103,7 @@ def montar(cenas: list[Cena], eras: list[Era], canone: Canone,
         "recordes": {},
         "rodizio_picos": [],
         "passado": [],
+        "anotacoes": canone.partidas,
     }
 
     primeira_era_cenas = cenas[eras[0].inicio:eras[0].fim] if eras else []

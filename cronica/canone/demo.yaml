@@ -214,3 +214,24 @@ eventos:
       Renekton repetindo isso na call. Virou a resposta padrão do grupo pra
       qualquer discussão.
     envolvidos: [teimoso]
+
+# ---------------------------------------------------------------------------
+# ANOTAÇÕES POR PARTIDA — o que você lembra de UM jogo específico.
+#
+# Memória de grupo não é feita de períodos, é feita de partidas. Aqui você cola
+# a história na linha do banco.
+#
+#   forma curta:  BR1_123: "texto da nota"
+#   forma longa:  nota / titulo / destacar
+#
+# `destacar: true` FORÇA a partida a virar cena do capítulo, mesmo que nenhum
+# seletor a tenha escolhido. É a sua válvula de escape: o código escala por
+# função narrativa, mas a história é sua.
+# ---------------------------------------------------------------------------
+partidas:
+  BR1_DEMO00026:
+    titulo: "A partida da febre"
+    nota: >
+      O Teimoso jogou com 39 de febre e não avisou ninguém. Só contou dois dias
+      depois, quando o Motor reclamou do top na call.
+    destacar: true

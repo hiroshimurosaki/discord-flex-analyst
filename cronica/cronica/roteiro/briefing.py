@@ -41,6 +41,21 @@ def _nome(canone: Canone, mid: str) -> str:
     return m.nome if m else mid
 
 
+def _nota_da_partida(canone: Canone, ficha: dict) -> str:
+    """A anotação que VOCÊ escreveu sobre esta partida, se houver.
+
+    Entra em toda cena, não só nas marcadas com `destacar` — se você anotou a
+    partida, a nota vale sempre que ela aparecer, inclusive quando foi outro
+    seletor que a escalou.
+    """
+    a = canone.anotacao(ficha.get("match_id", ""))
+    if not a:
+        return ""
+    return (f"> **Do cânone, sobre esta partida:** {a.nota}\n>\n"
+            f"> Isto é memória do grupo, não dado da API. Pode usar como "
+            f"contexto e como cor; não trate como número.\n")
+
+
 def _bloco_composicao(canone: Canone, ficha: dict) -> str:
     linhas = []
     for mid in ficha.get("elenco", []):
@@ -65,6 +80,9 @@ def _momento_md(canone: Canone, m, nivel: str = "###") -> str:
             f = d[chave]
             p.append(f"**{rot} — {f['data']} · {f['resultado']} · "
                      f"{f['duracao_min']} min**\n")
+            nota = _nota_da_partida(canone, f)
+            if nota:
+                p.append(nota)
             p.append(_bloco_composicao(canone, f) + "\n")
         ld_a, ld_d = d.get("lanediff_10_antes", {}), d.get("lanediff_10_depois", {})
         comuns = [k for k in ld_d if k in ld_a and ld_a[k] is not None
@@ -83,6 +101,9 @@ def _momento_md(canone: Canone, m, nivel: str = "###") -> str:
         if d.get("patch"):
             cab += f" · patch {d['patch']}"
         p.append(cab + "\n")
+        nota = _nota_da_partida(canone, d)
+        if nota:
+            p.append(nota)
         p.append(_bloco_composicao(canone, d) + "\n")
         if d.get("oponentes_por_rota"):
             p.append("Adversários por rota: " + ", ".join(
@@ -167,8 +188,13 @@ def gerar(cap: Capitulo, canone: Canone, biblia: Optional[dict] = None) -> str:
     """O briefing completo de um capítulo, em markdown."""
     e = cap.era
     p: list[str] = []
-    p.append(f"# Capítulo {cap.numero:02d} — {cap.titulo_provisorio}")
-    p.append(f"\n**Forma detectada pelo código:** `{e.forma}`  ")
+    # O cabeçalho NÃO leva o rótulo provisório: quando ele aparece aqui como
+    # título, o modelo copia — "Capítulo 02 — O Platô" vira o título do
+    # capítulo, e o rótulo do código (que é só um nome de forma) vaza pro
+    # produto. O rótulo vai para dentro da tabela, onde é dado e não sugestão.
+    p.append(f"# BRIEFING DO CAPÍTULO {cap.numero:02d} — não é o título")
+    p.append(f"\n**Forma detectada pelo código:** `{e.forma}` "
+             f"(rótulo interno: \"{cap.titulo_provisorio}\" — NÃO use como título)  ")
     p.append(f"**Período:** {e.data_inicio} a {e.data_fim}  ")
     p.append(f"**Partidas:** {e.jogos} ({e.vitorias}V / {e.jogos - e.vitorias}D) "
              f"— {e.wr}% de vitória\n")

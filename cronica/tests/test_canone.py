@@ -75,3 +75,26 @@ def test_canone_vazio_nao_quebra_o_pipeline(tmp_path):
     narração para não inventar jeito de ser de ninguém."""
     c = carregar(escrever(tmp_path, BASE))
     assert not c.personagem("a").preenchido
+
+
+def test_anotacao_de_partida_forma_curta_e_longa(tmp_path):
+    d = {**BASE, "partidas": {
+        "BR1_1": "jogou com febre",
+        "BR1_2": {"nota": "a briga", "titulo": "A briga", "destacar": True}}}
+    c = carregar(escrever(tmp_path, d))
+    assert c.anotacao("BR1_1").nota == "jogou com febre"
+    assert c.anotacao("BR1_1").destacar is False
+    assert c.anotacao("BR1_2").titulo == "A briga"
+    assert c.destaques == ("BR1_2",)
+
+
+def test_anotacao_sem_texto_e_recusada(tmp_path):
+    """Anotação vazia não faz nada e some sem avisar — melhor recusar."""
+    d = {**BASE, "partidas": {"BR1_1": {"destacar": True}}}
+    with pytest.raises(ErroCanone, match="nota"):
+        carregar(escrever(tmp_path, d))
+
+
+def test_partida_sem_anotacao_devolve_none(tmp_path):
+    c = carregar(escrever(tmp_path, BASE))
+    assert c.anotacao("BR1_999") is None and c.destaques == ()

@@ -99,6 +99,25 @@ class Personagem:
 
 
 @dataclass(frozen=True)
+class AnotacaoPartida:
+    """O que você lembra de UMA partida e a API nunca vai saber.
+
+    Existe porque o resto do cânone é sobre pessoas e períodos, e memória de
+    grupo não é assim: ela é feita de jogos específicos. "O dia em que o Teimoso
+    jogou com febre" não é um evento de calendário nem um traço de
+    personalidade — é uma linha de banco de dados com uma história colada.
+
+    `destacar` força a partida a virar cena do capítulo mesmo que nenhum
+    seletor a tenha escolhido. É a válvula de escape do sistema: o código
+    escala por função narrativa, mas você é dono da história.
+    """
+    match_id: str
+    nota: str
+    destacar: bool = False
+    titulo: str = ""
+
+
+@dataclass(frozen=True)
 class Evento:
     """Um marco fora do jogo, datado. Ancorado numa era pela cronologia."""
     data: dt.date
@@ -115,6 +134,7 @@ class Canone:
     membros: dict[str, Membro]
     personagens: dict[str, Personagem]
     eventos: tuple[Evento, ...]
+    partidas: dict[str, AnotacaoPartida] = field(default_factory=dict)
     voz: str = ""          # instrução de tom que vai no prompt da narração
 
     # ---- consultas que o resto do pipeline usa ----
@@ -131,6 +151,14 @@ class Canone:
 
     def eventos_entre(self, inicio: dt.date, fim: dt.date) -> list[Evento]:
         return [e for e in self.eventos if inicio <= e.data <= fim]
+
+    def anotacao(self, match_id: str) -> Optional[AnotacaoPartida]:
+        return self.partidas.get(match_id)
+
+    @property
+    def destaques(self) -> tuple[str, ...]:
+        """match_ids que você mandou entrar na história de qualquer jeito."""
+        return tuple(k for k, v in self.partidas.items() if v.destacar)
 
     def por_riot_id(self, riot_id: str) -> Optional[Membro]:
         alvo = riot_id.strip().casefold()
@@ -279,11 +307,28 @@ def carregar(caminho: Path | str) -> Canone:
         ))
     eventos.sort(key=lambda e: e.data)
 
+    part_bruto = bruto.get("partidas") or {}
+    _exigir(isinstance(part_bruto, dict),
+            "partidas: esperava mapa match_id -> anotação")
+    anotacoes: dict[str, AnotacaoPartida] = {}
+    for mid, dados in part_bruto.items():
+        onde = f"partidas.{mid}"
+        if isinstance(dados, str):        # forma curta: só a nota
+            dados = {"nota": dados}
+        _exigir(isinstance(dados, dict), f"{onde}: esperava texto ou mapa")
+        nota = _texto(dados.get("nota"))
+        _exigir(bool(nota), f"{onde}.nota: vazia (uma anotação sem texto não faz nada)")
+        anotacoes[str(mid)] = AnotacaoPartida(
+            match_id=str(mid), nota=nota,
+            destacar=bool(dados.get("destacar")),
+            titulo=_texto(dados.get("titulo")))
+
     return Canone(
         time=_texto(time_.get("nome")) or "o time",
         desde=_texto(time_.get("desde")) or None,
         membros=membros,
         personagens=personagens,
         eventos=tuple(eventos),
+        partidas=anotacoes,
         voz=_texto(bruto.get("voz")),
     )
