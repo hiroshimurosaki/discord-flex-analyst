@@ -16,7 +16,6 @@ eras muito diferentes disso, é a detecção que está errada, não a sua memór
 from __future__ import annotations
 
 import argparse
-import json
 import random
 import sys
 from datetime import datetime, timedelta, timezone

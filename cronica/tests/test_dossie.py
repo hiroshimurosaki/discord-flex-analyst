@@ -77,7 +77,6 @@ def test_mediana_dos_pares_exclui_o_proprio_avaliado():
 def test_morre_pouco_inverte_a_direcao():
     """'morre pouco' é a única métrica em que MENOS é melhor. Sem a inversão,
     quem mais morre seria elogiado."""
-    poucas = {"a": 1, "b": 8, "c": 8}
     assert D._sustenta(1, [8, 8], "alto", "morre_pouco") is True
     assert D._sustenta(9, [2, 2], "alto", "morre_pouco") is False
     assert D._sustenta(9, [2, 2], "alto", "dano") is True

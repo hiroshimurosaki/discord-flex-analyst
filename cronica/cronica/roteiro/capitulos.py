@@ -12,7 +12,7 @@ disponível para o seletor `espelho`.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Optional
 
 from ..canone import Canone
