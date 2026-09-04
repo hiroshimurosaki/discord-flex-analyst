@@ -118,6 +118,43 @@ class AnotacaoPartida:
 
 
 @dataclass(frozen=True)
+class Apontamento:
+    """O que foi dito a UMA pessoa num marco, e como medir se ela respondeu.
+
+    `texto` é a fala — vai para a narração com as palavras de quem falou.
+    `metrica` + `direcao` são a tradução daquela fala para algo mensurável, no
+    mesmo vocabulário fechado do `afirma`. Uma crítica sem métrica ainda vale
+    (entra na história), mas não recebe veredito: o código não adivinha o que
+    "joga mais junto" significa em número.
+    """
+    membro: str
+    texto: str
+    metrica: Optional[str] = None
+    direcao: str = "alto"
+
+    @property
+    def mensuravel(self) -> bool:
+        return self.metrica is not None
+
+
+@dataclass(frozen=True)
+class Marco:
+    """Um turning point DECLARADO — a causa que o dado não tem como conhecer.
+
+    `eras.py` acha quando o time mudou; nunca por quê. Um dossiê apresentado
+    numa call é uma causa datada, e `divide_era` força a cronologia a cortar
+    ali: sem isso a mudança que ele provocou apareceria diluída no meio de uma
+    era que começou por outro motivo.
+    """
+    id: str
+    data: dt.date
+    titulo: str
+    texto: str = ""
+    divide_era: bool = True
+    apontamentos: tuple[Apontamento, ...] = ()
+
+
+@dataclass(frozen=True)
 class Evento:
     """Um marco fora do jogo, datado. Ancorado numa era pela cronologia."""
     data: dt.date
@@ -134,6 +171,7 @@ class Canone:
     membros: dict[str, Membro]
     personagens: dict[str, Personagem]
     eventos: tuple[Evento, ...]
+    marcos: tuple[Marco, ...] = ()
     partidas: dict[str, AnotacaoPartida] = field(default_factory=dict)
     voz: str = ""          # instrução de tom que vai no prompt da narração
 
@@ -151,6 +189,14 @@ class Canone:
 
     def eventos_entre(self, inicio: dt.date, fim: dt.date) -> list[Evento]:
         return [e for e in self.eventos if inicio <= e.data <= fim]
+
+    def marco(self, mid: str) -> Optional[Marco]:
+        return next((m for m in self.marcos if m.id == mid), None)
+
+    @property
+    def cortes_declarados(self) -> tuple[dt.date, ...]:
+        """Datas que a cronologia deve tratar como fronteira obrigatória."""
+        return tuple(sorted(m.data for m in self.marcos if m.divide_era))
 
     def anotacao(self, match_id: str) -> Optional[AnotacaoPartida]:
         return self.partidas.get(match_id)
@@ -307,6 +353,50 @@ def carregar(caminho: Path | str) -> Canone:
         ))
     eventos.sort(key=lambda e: e.data)
 
+    marcos_bruto = bruto.get("marcos") or []
+    _exigir(isinstance(marcos_bruto, list), "marcos: esperava lista")
+    marcos = []
+    vistos: set[str] = set()
+    for i, m in enumerate(marcos_bruto):
+        onde = f"marcos[{i}]"
+        _exigir(isinstance(m, dict), f"{onde}: esperava mapa")
+        mid = _texto(m.get("id"))
+        _exigir(bool(mid), f"{onde}.id: obrigatório (é como o roteiro te acha)")
+        _exigir(mid not in vistos, f"{onde}.id: '{mid}' duplicado")
+        vistos.add(mid)
+
+        aps_bruto = m.get("apontamentos") or {}
+        _exigir(isinstance(aps_bruto, dict),
+                f"{onde}.apontamentos: esperava mapa membro -> apontamento")
+        aps = []
+        for quem, dados in aps_bruto.items():
+            oap = f"{onde}.apontamentos.{quem}"
+            _exigir(str(quem) in membros, f"{oap}: '{quem}' não está no elenco")
+            if isinstance(dados, str):        # forma curta: só a fala
+                dados = {"texto": dados}
+            _exigir(isinstance(dados, dict), f"{oap}: esperava texto ou mapa")
+            texto = _texto(dados.get("texto"))
+            _exigir(bool(texto), f"{oap}.texto: vazio")
+            met = _texto(dados.get("metrica")) or None
+            if met is not None:
+                _exigir(met in METRICAS,
+                        f"{oap}.metrica: '{met}' inválida (use: {sorted(METRICAS)})")
+            direcao = _texto(dados.get("direcao")) or "alto"
+            _exigir(direcao in DIRECOES,
+                    f"{oap}.direcao: '{direcao}' inválida (use: {list(DIRECOES)})")
+            aps.append(Apontamento(membro=str(quem), texto=texto,
+                                   metrica=met, direcao=direcao))
+
+        marcos.append(Marco(
+            id=mid,
+            data=_data(m.get("data"), f"{onde}.data"),
+            titulo=_texto(m.get("titulo")) or mid,
+            texto=_texto(m.get("texto")),
+            divide_era=bool(m.get("divide_era", True)),
+            apontamentos=tuple(aps),
+        ))
+    marcos.sort(key=lambda m: m.data)
+
     part_bruto = bruto.get("partidas") or {}
     _exigir(isinstance(part_bruto, dict),
             "partidas: esperava mapa match_id -> anotação")
@@ -329,6 +419,7 @@ def carregar(caminho: Path | str) -> Canone:
         membros=membros,
         personagens=personagens,
         eventos=tuple(eventos),
+        marcos=tuple(marcos),
         partidas=anotacoes,
         voz=_texto(bruto.get("voz")),
     )

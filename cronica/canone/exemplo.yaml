@@ -56,9 +56,9 @@ elenco:
       nome: "Thokyru"
       riot_id: "Thokyru#BR1"
       role: UTILITY
-    lukyy:
-      nome: "Lukyy"
-      riot_id: "Lukyy#Luky"    # dois 'y' no nome, um no tag
+    topmogger:
+      nome: "Top Mogger"
+      riot_id: "Top Mogger#Dasky"
       role: TOP
     yuya:
       nome: "Yuya Freecss"
@@ -76,11 +76,11 @@ elenco:
       riot_id: "Nashorn#Shiro"
       role: JUNGLE
       entra_no_lugar_de: hiroshi
-    topmogger:
-      nome: "Top Mogger"
-      riot_id: "Top Mogger#Dasky"
+    lukyy:
+      nome: "Lukyy"
+      riot_id: "Lukyy#Luky"    # dois 'y' no nome, um no tag
       role: TOP
-      entra_no_lugar_de: lukyy
+      entra_no_lugar_de: topmogger
 
 # ---------------------------------------------------------------------------
 # PERSONAGENS
@@ -211,6 +211,52 @@ eventos:
       comemoraram, a piada interna que nasceu de uma partida específica, o
       campeonato interno, o dia em que alguém mudou de role de vez.
     envolvidos: []
+
+# ---------------------------------------------------------------------------
+# MARCOS — os turning points DECLARADOS.
+#
+# `eventos` registra que algo aconteceu. `marcos` afirma que algo MUDOU o time,
+# e cobra a conta: cada apontamento vira um veredito medido antes/depois.
+#
+# Diferença que importa: a detecção de eras acha QUANDO o time mudou, nunca POR
+# QUÊ. Um dossiê apresentado numa call é uma causa datada. `divide_era: true`
+# força a cronologia a cortar ali — sem isso, a mudança que ele provocou sai
+# diluída dentro de uma era que começou por outro motivo.
+#
+# Em `apontamentos`, o `texto` é a FALA (vai pra narração com as suas palavras).
+# `metrica` + `direcao` traduzem a fala para algo mensurável, no mesmo
+# vocabulário fechado do `afirma`:
+#
+#   dano  carrega  rota  visao  farm  kda  morre_pouco  kp
+#
+# `direcao: alto` = a qualidade deve subir. Em `morre_pouco` a qualidade é
+# morrer pouco, então 'alto' espera MENOS mortes.
+#
+# Apontamento SEM métrica continua valendo — entra na história, só não recebe
+# veredito. É melhor assim: o código não adivinha o que "joga mais junto"
+# significa em número, e não vai fingir que adivinhou.
+#
+# Os cinco vereditos possíveis:
+#   atendeu   mudou no sentido pedido, e o acaso não explica  -> pagamento
+#   indicio   mudou no sentido pedido, amostra ainda curta    -> esperança
+#   inerte    não mudou além do ruído                         -> não pegou
+#   piorou    mudou no sentido contrário                      -> conflito
+#   sem_dado  não jogou o bastante de um dos lados            -> silêncio honesto
+# ---------------------------------------------------------------------------
+marcos: []
+  # - id: dossie
+  #   data: 2025-05-29
+  #   titulo: "O dossiê"
+  #   texto: >
+  #     Apresentei slides para o grupo apontando, um por um, o que cada um
+  #     precisava consertar.
+  #   divide_era: true
+  #   apontamentos:
+  #     hiroshi: "TODO: o que você apontou nele, com as SUAS palavras"
+  #     topmogger:
+  #       texto: "você perde a rota antes dos 10 e o jogo nasce torto"
+  #       metrica: rota
+  #       direcao: alto
 
 # ---------------------------------------------------------------------------
 # ANOTAÇÕES POR PARTIDA — o que você lembra de UM jogo específico.

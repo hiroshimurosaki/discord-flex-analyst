@@ -38,51 +38,73 @@ def _kda(k: int, d: int, a: int) -> float:
     return (k + a) / max(d, 1)
 
 
-def medir(cenas: list[Cena], membro: str) -> dict[str, Optional[float]]:
-    """As métricas do membro num trecho. `None` = não dá para medir.
+def _valor(c: Cena, membro: str, metrica: str) -> Optional[float]:
+    """O valor de UMA métrica numa ÚNICA partida. `None` = indefinido ali.
 
     Dano e KP são **share do time**, não absoluto: 25k de dano não significa
     nada sem saber quanto o time todo fez. Normalizar dentro da partida é o que
     torna comparável um jogo de 22 minutos com um de 41.
     """
-    minhas = [c for c in cenas if membro in c.elenco]
-    if not minhas:
-        return {m: None for m in METRICAS}
-
-    def media(vals: list[float]) -> Optional[float]:
-        vals = [v for v in vals if v is not None]
-        return round(sum(vals) / len(vals), 2) if vals else None
-
-    share_dano, share_kp, pcts = [], [], []
-    for c in minhas:
+    if metrica == "dano":
         tot = sum(c.dano.values())
-        if tot:
-            share_dano.append(100 * c.dano[membro] / tot)
-        if c.kp.get(membro) is not None:
-            share_kp.append(100 * c.kp[membro])
+        return 100 * c.dano[membro] / tot if tot else None
+    if metrica == "kp":
+        v = c.kp.get(membro)
+        return 100 * v if v is not None else None
+    if metrica == "carrega":
         # Percentil-na-partida: posição do membro entre os DEZ que jogaram
         # aquele jogo. É a régua mais honesta disponível sem baixar o elo do
         # lobby — os dez viveram o mesmo patch, a mesma duração e o mesmo nível
         # de oposição. Medir só contra os quatro companheiros responderia outra
         # pergunta ("quem carregou o time?") e a chamaria pelo nome errado.
         dez = c.dano_dos_dez or tuple(sorted(c.dano.values()))
-        if len(dez) > 1:
-            pos = sum(1 for v in dez if v < c.dano[membro])
-            pcts.append(100 * pos / (len(dez) - 1))
+        if len(dez) < 2:
+            return None
+        pos = sum(1 for v in dez if v < c.dano[membro])
+        return 100 * pos / (len(dez) - 1)
+    if metrica == "rota":
+        return c.lanediff_10.get(membro)
+    if metrica == "visao":
+        return c.visao[membro]
+    if metrica == "farm":
+        return c.farm[membro] / max(c.duracao_seg / 60, 1)
+    if metrica == "kda":
+        return _kda(*c.kda[membro])
+    if metrica == "morre_pouco":
+        return c.kda[membro][1]
+    raise KeyError(f"métrica desconhecida: {metrica}")
 
-    mortes = [c.kda[membro][1] for c in minhas]
-    return {
-        "dano": media(share_dano),
-        "carrega": media(pcts),
-        "rota": media([c.lanediff_10.get(membro) for c in minhas]),
-        "visao": media([c.visao[membro] for c in minhas]),
-        "farm": media([c.farm[membro] / max(c.duracao_seg / 60, 1) for c in minhas]),
-        "kda": media([_kda(*c.kda[membro]) for c in minhas]),
-        "morre_pouco": media(mortes),
-        "kp": media(share_kp),
-        "_jogos": len(minhas),
-        "_wr": round(100 * sum(c.venceu for c in minhas) / len(minhas), 1),
-    }
+
+def serie(cenas: list[Cena], membro: str, metrica: str) -> list[tuple[Cena, float]]:
+    """A métrica partida a partida, em ordem cronológica.
+
+    Existe porque média não sustenta duas coisas que a história precisa: um
+    teste de significância (que exige a dispersão, não só o centro) e um
+    gráfico de progressão (que É a série). `medir` passou a ser a média disto.
+    """
+    fora = []
+    for c in cenas:
+        if membro not in c.elenco:
+            continue
+        v = _valor(c, membro, metrica)
+        if v is not None:
+            fora.append((c, float(v)))
+    return fora
+
+
+def medir(cenas: list[Cena], membro: str) -> dict[str, Optional[float]]:
+    """As métricas do membro num trecho — a média de cada `serie`."""
+    minhas = [c for c in cenas if membro in c.elenco]
+    if not minhas:
+        return {m: None for m in METRICAS}
+
+    fora: dict[str, Optional[float]] = {}
+    for m in METRICAS:
+        vals = [v for _, v in serie(minhas, membro, m)]
+        fora[m] = round(sum(vals) / len(vals), 2) if vals else None
+    fora["_jogos"] = len(minhas)
+    fora["_wr"] = round(100 * sum(c.venceu for c in minhas) / len(minhas), 1)
+    return fora
 
 
 def _sustenta(valor: Optional[float], pares: list[float], direcao: str,
