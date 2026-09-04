@@ -1,8 +1,9 @@
 from .modelo import (
     AnotacaoPartida, Apontamento, Canone, Personagem, Membro, Evento, Marco,
+    TIPOS_APONTAMENTO,
     carregar, ErroCanone, METRICAS, DIRECOES, VEREDITOS, TIPOS_EVENTO,
 )
 
 __all__ = ["AnotacaoPartida", "Apontamento", "Canone", "Personagem", "Membro",
            "Evento", "Marco", "carregar", "ErroCanone", "METRICAS", "DIRECOES",
-           "VEREDITOS", "TIPOS_EVENTO"]
+           "VEREDITOS", "TIPOS_EVENTO", "TIPOS_APONTAMENTO"]

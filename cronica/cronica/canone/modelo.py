@@ -82,6 +82,13 @@ class Personagem:
     """A pessoa como personagem. Texto livre é de propósito: é o que dá voz."""
     id: str
     arquetipo: str = ""
+    # Apelido e a data em que ele foi CONQUISTADO. A narração fica proibida de
+    # usá-lo antes dessa data: um apelido que aparece no capítulo 1 é rótulo de
+    # crachá; um que nasce em cena, na hora em que a pessoa fez por merecer, é
+    # personagem. Depois disso, com parcimônia — repetir apelido a cada
+    # parágrafo gasta o que custou a história inteira para construir.
+    apelido: str = ""
+    conquistado_em: Optional[str] = None      # 'YYYY-MM-DD' ou um match_id
     personalidade: str = ""
     se_acha: str = ""                     # auto-imagem -> motor de tensão
     medo: str = ""
@@ -117,24 +124,48 @@ class AnotacaoPartida:
     titulo: str = ""
 
 
+TIPOS_APONTAMENTO = {
+    "metrica",       # desempenho dentro do jogo: dano, rota, visao, kda...
+    "role_evitada",  # "pare de jogar ADC" -> a fatia daquela role deve CAIR
+    "role_alvo",     # "vá pro Mid"        -> a fatia daquela role deve SUBIR
+    "pool",          # "one-trick Gnar"    -> a fatia daqueles campeões deve SUBIR
+    "volume",        # "jogue mais"        -> partidas por semana deve SUBIR
+    "livre",         # sem veredito: entra na história, não vira número
+}
+
+
 @dataclass(frozen=True)
 class Apontamento:
     """O que foi dito a UMA pessoa num marco, e como medir se ela respondeu.
 
     `texto` é a fala — vai para a narração com as palavras de quem falou.
-    `metrica` + `direcao` são a tradução daquela fala para algo mensurável, no
-    mesmo vocabulário fechado do `afirma`. Uma crítica sem métrica ainda vale
-    (entra na história), mas não recebe veredito: o código não adivinha o que
-    "joga mais junto" significa em número.
+    O resto é a tradução daquela fala para algo mensurável.
+
+    Cinco tipos, porque um dossiê real não cobra só uma coisa. As críticas que
+    de fato aparecem em dossiê de grupo raramente são "dê mais dano": são
+    "pare de jogar essa role", "fecha o pool", "joga mais". Um vocabulário só
+    de métricas de desempenho não conseguiria medir nenhuma delas, e o veredito
+    sairia `sem_dado` para quase todo mundo — o mecanismo pareceria funcionar e
+    estaria calado exatamente onde importa.
+
+      metrica       `metrica` + `direcao`, do vocabulário fechado METRICAS
+      role_evitada  `role` — a fatia de partidas naquela role deve cair
+      role_alvo     `role` — deve subir
+      pool          `campeoes` — a fatia de partidas naqueles campeões deve subir
+      volume        partidas por semana deve subir
+      livre         entra na história, não recebe veredito
     """
     membro: str
     texto: str
+    tipo: str = "metrica"
     metrica: Optional[str] = None
     direcao: str = "alto"
+    role: Optional[str] = None
+    campeoes: tuple[str, ...] = ()
 
     @property
     def mensuravel(self) -> bool:
-        return self.metrica is not None
+        return self.tipo != "livre"
 
 
 @dataclass(frozen=True)
@@ -324,6 +355,8 @@ def carregar(caminho: Path | str) -> Canone:
         personagens[pid] = Personagem(
             id=pid,
             arquetipo=_texto(dados.get("arquetipo")),
+            apelido=_texto(dados.get("apelido")),
+            conquistado_em=_texto(dados.get("conquistado_em")) or None,
             personalidade=_texto(dados.get("personalidade")),
             se_acha=_texto(dados.get("se_acha")),
             medo=_texto(dados.get("medo")),
@@ -369,24 +402,47 @@ def carregar(caminho: Path | str) -> Canone:
         _exigir(isinstance(aps_bruto, dict),
                 f"{onde}.apontamentos: esperava mapa membro -> apontamento")
         aps = []
-        for quem, dados in aps_bruto.items():
-            oap = f"{onde}.apontamentos.{quem}"
-            _exigir(str(quem) in membros, f"{oap}: '{quem}' não está no elenco")
-            if isinstance(dados, str):        # forma curta: só a fala
-                dados = {"texto": dados}
-            _exigir(isinstance(dados, dict), f"{oap}: esperava texto ou mapa")
-            texto = _texto(dados.get("texto"))
-            _exigir(bool(texto), f"{oap}.texto: vazio")
-            met = _texto(dados.get("metrica")) or None
-            if met is not None:
-                _exigir(met in METRICAS,
-                        f"{oap}.metrica: '{met}' inválida (use: {sorted(METRICAS)})")
-            direcao = _texto(dados.get("direcao")) or "alto"
-            _exigir(direcao in DIRECOES,
-                    f"{oap}.direcao: '{direcao}' inválida (use: {list(DIRECOES)})")
-            aps.append(Apontamento(membro=str(quem), texto=texto,
-                                   metrica=met, direcao=direcao))
-
+        for quem, dados_raw in aps_bruto.items():
+            _exigir(str(quem) in membros,
+                    f"{onde}.apontamentos.{quem}: '{quem}' não está no elenco")
+            # Uma pessoa pode receber VÁRIAS cobranças no mesmo dossiê ("corta
+            # o Support" e "fecha o pool no Gnar" são coisas diferentes, e
+            # colapsá-las numa só perderia metade do veredito).
+            itens = dados_raw if isinstance(dados_raw, list) else [dados_raw]
+            for k, dados in enumerate(itens):
+                oap = (f"{onde}.apontamentos.{quem}"
+                       + (f"[{k}]" if len(itens) > 1 else ""))
+                if isinstance(dados, str):    # forma curta: só a fala
+                    dados = {"texto": dados}
+                _exigir(isinstance(dados, dict), f"{oap}: esperava texto ou mapa")
+                texto = _texto(dados.get("texto"))
+                _exigir(bool(texto), f"{oap}.texto: vazio")
+                met = _texto(dados.get("metrica")) or None
+                role = _texto(dados.get("role")).upper() or None
+                champs = _lista_texto(dados.get("campeoes"), f"{oap}.campeoes")
+                # O tipo é inferido do campo presente quando não vem explícito: um
+                # cânone escrito à mão não deveria ter de declarar o óbvio.
+                tipo = _texto(dados.get("tipo")) or (
+                    "metrica" if met else
+                    "pool" if champs else
+                    "volume" if dados.get("volume") else
+                    "role_alvo" if role else "livre")
+                _exigir(tipo in TIPOS_APONTAMENTO,
+                        f"{oap}.tipo: '{tipo}' inválido "
+                        f"(use: {sorted(TIPOS_APONTAMENTO)})")
+                if tipo == "metrica":
+                    _exigir(met in METRICAS,
+                            f"{oap}.metrica: '{met}' inválida (use: {sorted(METRICAS)})")
+                if tipo in ("role_evitada", "role_alvo"):
+                    _exigir(bool(role), f"{oap}.role: obrigatória para tipo '{tipo}'")
+                if tipo == "pool":
+                    _exigir(bool(champs), f"{oap}.campeoes: obrigatório para tipo 'pool'")
+                direcao = _texto(dados.get("direcao")) or "alto"
+                _exigir(direcao in DIRECOES,
+                        f"{oap}.direcao: '{direcao}' inválida (use: {list(DIRECOES)})")
+                aps.append(Apontamento(membro=str(quem), texto=texto, tipo=tipo,
+                                       metrica=met, direcao=direcao, role=role,
+                                       campeoes=champs))
         marcos.append(Marco(
             id=mid,
             data=_data(m.get("data"), f"{onde}.data"),

@@ -125,7 +125,11 @@ personagens:
   # ----------------------------------------------------------------------
 
   hiroshi:
-    arquetipo: "TODO: em uma frase, quem ele é na call"
+    arquetipo: "o snowballer que afoga no late"
+    apelido: "O Fogo que Apaga"
+    conquistado_em: "2026-05-29"   # a premiação do dossiê
+    # leitura dos dossiês de 29/05/2026 — as suas palavras, não as minhas:
+    leitura_dossie: "Abre vantagem cedo, mas desinfla quando embala e afoga no late. Maior elo do grupo (Emerald I no Flex). Motor de dano e ouro."
     personalidade: "TODO"
     se_acha: "TODO: o que ELE diria que é o forte dele, com as palavras dele"
     medo: "TODO: o que ele evita — e que decisão ruim isso causa"
@@ -133,7 +137,11 @@ personagens:
     relacoes: {}
 
   qiak:
-    arquetipo: "TODO"
+    arquetipo: "o rei da virada"
+    apelido: "O Virador"
+    conquistado_em: "2026-05-29"   # a premiação do dossiê
+    # leitura dos dossiês de 29/05/2026 — as suas palavras, não as minhas:
+    leitura_dossie: "Joga melhor quando vem perdendo. Resiliente, vira de trás, quase nunca dá FF. 75% de WR após cold streak."
     personalidade: "TODO"
     se_acha: "TODO"
     medo: "TODO"
@@ -141,7 +149,11 @@ personagens:
     relacoes: {}
 
   thokyru:
-    arquetipo: "TODO"
+    arquetipo: "puro momentum"
+    apelido: "O Montanha-Russa"
+    conquistado_em: "2026-05-29"   # a premiação do dossiê
+    # leitura dos dossiês de 29/05/2026 — as suas palavras, não as minhas:
+    leitura_dossie: "Surfa a onda ou afunda com ela. Embala forte (73.5% pós-vitória) mas tilta feio depois de perder (38.9%). Rei da visão."
     personalidade: "TODO"
     se_acha: "TODO"
     medo: "TODO"
@@ -149,7 +161,11 @@ personagens:
     relacoes: {}
 
   lukyy:
-    arquetipo: "TODO"
+    arquetipo: "o tudo-ou-nada"
+    apelido: "O Gnar-Dependente"
+    conquistado_em: "2026-05-29"   # a premiação do dossiê
+    # leitura dos dossiês de 29/05/2026 — as suas palavras, não as minhas:
+    leitura_dossie: "100% quando começa na frente, 0% quando começa atrás. No Gnar entrega 71%; fora do pool, desaba."
     personalidade: "TODO"
     se_acha: "TODO"
     medo: "TODO"
@@ -157,7 +173,11 @@ personagens:
     relacoes: {}
 
   yuya:
-    arquetipo: "TODO"
+    arquetipo: "o pilar"
+    apelido: "O Pilar"
+    conquistado_em: "2026-05-29"   # a premiação do dossiê
+    # leitura dos dossiês de 29/05/2026 — as suas palavras, não as minhas:
+    leitura_dossie: "O único que NÃO desaba quando perde: 77% pós-vitória E 73% pós-derrota. Consistência de elite. A base do time."
     personalidade: "TODO"
     se_acha: "TODO"
     medo: "TODO"
@@ -165,7 +185,11 @@ personagens:
     relacoes: {}
 
   nyachi:
-    arquetipo: "TODO"
+    arquetipo: "o atirador puro"
+    apelido: "O Fênix"
+    conquistado_em: "2026-05-29"   # a premiação do dossiê
+    # leitura dos dossiês de 29/05/2026 — as suas palavras, não as minhas:
+    leitura_dossie: "One-trick de role: só ADC, 37 jogos e zero em outra posição. Renasce das cinzas: 68% após derrota."
     personalidade: "TODO"
     se_acha: "TODO"
     medo: "TODO"
@@ -173,7 +197,11 @@ personagens:
     relacoes: {}
 
   nashorn:
-    arquetipo: "TODO"
+    arquetipo: "o que joga na role errada"
+    apelido: "Dedo no FF"
+    conquistado_em: "2026-05-29"   # a premiação do dossiê
+    # leitura dos dossiês de 29/05/2026 — as suas palavras, não as minhas:
+    leitura_dossie: "Joga muito melhor de Mid (62.5%) que de Jungle (48.1%). Maior taxa de surrender do grupo: 30%. Aguenta o late — raridade aqui."
     personalidade: "TODO"
     se_acha: "TODO"
     medo: "TODO"
@@ -181,7 +209,11 @@ personagens:
     relacoes: {}
 
   topmogger:
-    arquetipo: "TODO"
+    arquetipo: "o monstro do red side"
+    apelido: "O Executor"
+    conquistado_em: "2026-05-29"   # a premiação do dossiê
+    # leitura dos dossiês de 29/05/2026 — as suas palavras, não as minhas:
+    leitura_dossie: "87.5% de Top no Flex e ex-Diamond: o elo Silver engana. 81% de WR no red side, 44% no blue."
     personalidade: "TODO"
     se_acha: "TODO"
     medo: "TODO"
@@ -243,20 +275,63 @@ eventos:
 #   piorou    mudou no sentido contrário                      -> conflito
 #   sem_dado  não jogou o bastante de um dos lados            -> silêncio honesto
 # ---------------------------------------------------------------------------
-marcos: []
-  # - id: dossie
-  #   data: 2025-05-29
-  #   titulo: "O dossiê"
-  #   texto: >
-  #     Apresentei slides para o grupo apontando, um por um, o que cada um
-  #     precisava consertar.
-  #   divide_era: true
-  #   apontamentos:
-  #     hiroshi: "TODO: o que você apontou nele, com as SUAS palavras"
-  #     topmogger:
-  #       texto: "você perde a rota antes dos 10 e o jogo nasce torto"
-  #       metrica: rota
-  #       direcao: alto
+marcos:
+  - id: dossie
+    data: 2026-05-29
+    titulo: "O dossiê"
+    texto: >
+      Apresentei dois decks para o grupo: "O Esquadrão" (fichas individuais,
+      matriz de sinergia, time titular, premiação) e a "Análise Avançada"
+      (roles, consistência, pontos fracos, tier list). Apontei, um por um, o
+      que cada um precisava consertar — e distribuí os apelidos.
+    divide_era: true
+
+    # ATENÇÃO — a tradução de cada crítica para algo mensurável é MINHA leitura
+    # dos slides, não sua fala. Confira uma por uma: um mapeamento errado aqui
+    # produz um veredito errado sobre uma pessoa real. Se alguma cobrança não
+    # couber em role/pool/volume/métrica, marque `tipo: livre` — ela continua
+    # entrando na história, só não recebe número.
+    apontamentos:
+
+      hiroshi:
+        texto: "ADC: 28.4% de WR em 37 jogos — evitar essa role. Focar Jungle/Mid, onde é 60%+."
+        tipo: role_evitada
+        role: BOTTOM
+
+      qiak:
+        texto: "Support: 44.4% — não é sua role ideal apesar do volume. Fixar ADC + Jungle."
+        tipo: role_evitada
+        role: UTILITY
+
+      yuya:
+        texto: "Volume baixo (61 jogos) — amostra pequena demais para conclusão definitiva. Jogar mais."
+        tipo: volume
+
+      thokyru:
+        texto: "Mid: só 50% em 8 jogos, sem especialização. Explorar mais ADC (81.8%) ou manter Top+Sup como identidade."
+        tipo: role_evitada
+        role: MIDDLE
+
+      nashorn:
+        texto: "Jungle 48.1% — main role abaixo de 50%. Testar Mid como main (62.5%)."
+        tipo: role_alvo
+        role: MIDDLE
+
+      topmogger:
+        texto: "Apenas 25 jogos — dados insuficientes para análise confiável. Jogar mais para validar."
+        tipo: volume
+
+      lukyy:
+        - texto: "Support: 25% de WR — não jogar mais essa role. Cortar Support e ADC completamente."
+          tipo: role_evitada
+          role: UTILITY
+        - texto: "One-trick Gnar até o Gold. O Gnar 71.4% é real; o problema é jogar fora do pool."
+          tipo: pool
+          campeoes: ["Gnar"]
+
+      nyachi:
+        texto: "Dados insuficientes (7 jogos). Jogar pelo menos 50 partidas antes de qualquer análise."
+        tipo: volume
 
 # ---------------------------------------------------------------------------
 # ANOTAÇÕES POR PARTIDA — o que você lembra de UM jogo específico.

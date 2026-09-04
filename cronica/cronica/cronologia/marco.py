@@ -27,7 +27,7 @@ import random
 from dataclasses import dataclass, asdict
 from typing import Optional
 
-from ..canone import Canone, METRICAS
+from ..canone import Apontamento, Canone, METRICAS
 from . import dossie
 from .series import Cena
 
@@ -79,7 +79,8 @@ def _melhorou(delta: float, metrica: str, direcao: str) -> bool:
 class Resposta:
     """Como UMA pessoa respondeu a UM apontamento."""
     membro: str
-    metrica: str
+    tipo: str
+    metrica: Optional[str]
     direcao: str
     rotulo_metrica: str
     apontamento: str          # o que foi dito a ela, com as palavras de quem disse
@@ -95,10 +96,84 @@ class Resposta:
         return asdict(self)
 
 
-def avaliar_apontamento(cenas: list[Cena], membro: str, metrica: str,
-                        direcao: str, apontamento: str, corte_ts: int,
-                        iteracoes: int = ITERACOES) -> Resposta:
-    """Mede uma métrica antes e depois do corte e emite o veredito.
+def _binaria(cenas: list[Cena], membro: str, pertence) -> list[float]:
+    """1.0 quando a partida satisfaz o predicado, 0.0 quando não.
+
+    Serve role e pool: 'parou de jogar ADC' é a média desta série caindo, e a
+    média de uma série 0/1 é exatamente a fatia de partidas. O mesmo teste de
+    permutação vale aqui sem adaptação — ele nunca soube o que os números
+    significavam, só embaralha rótulos.
+    """
+    return [1.0 if pertence(c) else 0.0 for c in cenas if membro in c.elenco]
+
+
+def _por_semana(cenas: list[Cena], membro: str) -> list[float]:
+    """Partidas por semana, uma entrada por semana do período.
+
+    Volume não é propriedade de uma partida — é uma taxa —, então a série tem
+    de ser de semanas, não de jogos. Semanas sem jogo entram como zero de
+    propósito: sumir com elas mediria "quando joga, joga quanto", que é outra
+    pergunta e responde bonito demais para quem sumiu dois meses.
+    """
+    meus = sorted(c.ts for c in cenas if membro in c.elenco)
+    if not meus:
+        return []
+    UMA_SEMANA = 7 * 24 * 3600 * 1000
+    ini, fim = meus[0], meus[-1]
+    n = max(1, int((fim - ini) // UMA_SEMANA) + 1)
+    baldes = [0.0] * n
+    for ts in meus:
+        baldes[min(int((ts - ini) // UMA_SEMANA), n - 1)] += 1.0
+    return baldes
+
+
+def _amostras(cenas: list[Cena], ap: Apontamento,
+              corte_ts: int) -> tuple[list[float], list[float], str, str]:
+    """(antes, depois, direção desejada, rótulo) para qualquer tipo.
+
+    Normalizar aqui é o que permite um veredito só lá embaixo: seja métrica de
+    desempenho, disciplina de role, pool ou volume, tudo vira duas listas de
+    números e uma direção.
+    """
+    antes = [c for c in cenas if c.ts < corte_ts]
+    depois = [c for c in cenas if c.ts >= corte_ts]
+    m = ap.membro
+
+    if ap.tipo == "metrica":
+        return ([v for _, v in dossie.serie(antes, m, ap.metrica)],
+                [v for _, v in dossie.serie(depois, m, ap.metrica)],
+                ap.direcao, METRICAS.get(ap.metrica, ap.metrica or ""))
+
+    if ap.tipo in ("role_evitada", "role_alvo"):
+        alvo = (ap.role or "").upper()
+
+        def pred(c, alvo=alvo, m=m):
+            return (c.roles.get(m) or "").upper() == alvo
+
+        # 'evitada' quer a fatia CAINDO: mesma medida, direção virada.
+        direcao = "baixo" if ap.tipo == "role_evitada" else "alto"
+        return (_binaria(antes, m, pred), _binaria(depois, m, pred), direcao,
+                f"% de partidas em {alvo}")
+
+    if ap.tipo == "pool":
+        alvo_c = {x.casefold() for x in ap.campeoes}
+
+        def pred(c, alvo_c=alvo_c, m=m):
+            return (c.campeoes.get(m) or "").casefold() in alvo_c
+
+        return (_binaria(antes, m, pred), _binaria(depois, m, pred), "alto",
+                f"% de partidas em {', '.join(ap.campeoes)}")
+
+    if ap.tipo == "volume":
+        return (_por_semana(antes, m), _por_semana(depois, m), "alto",
+                "partidas por semana")
+
+    return ([], [], ap.direcao, "sem medida")
+
+
+def avaliar_ap(cenas: list[Cena], ap: Apontamento, corte_ts: int,
+               iteracoes: int = ITERACOES) -> Resposta:
+    """Mede um apontamento antes e depois do corte e emite o veredito.
 
     Cinco vereditos, e cada um é uma cena diferente no slide:
 
@@ -108,17 +183,12 @@ def avaliar_apontamento(cenas: list[Cena], membro: str, metrica: str,
       piorou     mudou no sentido contrário                       -> conflito
       sem_dado   não jogou o bastante de um dos lados             -> silêncio honesto
     """
-    rotulo = METRICAS.get(metrica, metrica)
-    antes_p = [c for c in cenas if c.ts < corte_ts]
-    depois_p = [c for c in cenas if c.ts >= corte_ts]
-    a = [v for _, v in dossie.serie(antes_p, membro, metrica)]
-    b = [v for _, v in dossie.serie(depois_p, membro, metrica)]
-
-    base = dict(membro=membro, metrica=metrica, direcao=direcao,
-                rotulo_metrica=rotulo, apontamento=apontamento,
+    a, b, direcao, rotulo = _amostras(cenas, ap, corte_ts)
+    base = dict(membro=ap.membro, tipo=ap.tipo, metrica=ap.metrica,
+                direcao=direcao, rotulo_metrica=rotulo, apontamento=ap.texto,
                 n_antes=len(a), n_depois=len(b))
 
-    if len(a) < MIN_LADO or len(b) < MIN_LADO:
+    if ap.tipo == "livre" or len(a) < MIN_LADO or len(b) < MIN_LADO:
         return Resposta(**base, media_antes=None, media_depois=None,
                         delta=None, p=None, veredito="sem_dado")
 
@@ -126,8 +196,11 @@ def avaliar_apontamento(cenas: list[Cena], membro: str, metrica: str,
     delta = mb - ma
     p = _p_permutacao(a, b, iteracoes=iteracoes)
 
-    if not _melhorou(delta, metrica, direcao):
-        # Piorar só é afirmável com a mesma régua que exigimos para melhorar.
+    # A inversão de sinal do `morre_pouco` só existe no vocabulário de
+    # desempenho; role, pool e volume já vêm com a direção resolvida em
+    # `_amostras`, e por isso passam `metrica=None` aqui.
+    met = ap.metrica if ap.tipo == "metrica" else None
+    if not _melhorou(delta, met or "", direcao):
         veredito = "piorou" if p <= P_FORTE else "inerte"
     elif p <= P_FORTE:
         veredito = "atendeu"
@@ -140,6 +213,16 @@ def avaliar_apontamento(cenas: list[Cena], membro: str, metrica: str,
                     delta=round(delta, 2), p=p, veredito=veredito)
 
 
+def avaliar_apontamento(cenas: list[Cena], membro: str, metrica: str,
+                        direcao: str, apontamento: str, corte_ts: int,
+                        iteracoes: int = ITERACOES) -> Resposta:
+    """Atalho para o caso `metrica`, que é o mais comum ao testar."""
+    return avaliar_ap(cenas, Apontamento(membro=membro, texto=apontamento,
+                                         tipo="metrica", metrica=metrica,
+                                         direcao=direcao),
+                      corte_ts, iteracoes=iteracoes)
+
+
 def avaliar(cenas: list[Cena], canone: Canone, marco_id: str,
             iteracoes: int = ITERACOES) -> list[Resposta]:
     """Todos os apontamentos de um marco, na ordem em que foram declarados."""
@@ -148,6 +231,5 @@ def avaliar(cenas: list[Cena], canone: Canone, marco_id: str,
         raise KeyError(f"marco '{marco_id}' não existe no cânone")
     corte = dt.datetime.combine(marco.data, dt.time.min, tzinfo=dt.timezone.utc)
     corte_ts = int(corte.timestamp() * 1000)
-    return [avaliar_apontamento(cenas, ap.membro, ap.metrica, ap.direcao,
-                                ap.texto, corte_ts, iteracoes=iteracoes)
+    return [avaliar_ap(cenas, ap, corte_ts, iteracoes=iteracoes)
             for ap in marco.apontamentos]
